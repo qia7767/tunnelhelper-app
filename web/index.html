@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tunnel Helper</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header id="titlebarDrag" class="app-titlebar">
+      <div class="window-brand">
+        <img class="window-icon" src="./assets/app-icon.svg" alt="" />
+        <span>Tunnel Helper</span>
+      </div>
+      <div class="window-controls">
+        <button id="windowMinimize" class="window-control" aria-label="最小化">-</button>
+        <button id="windowMaximize" class="window-control" aria-label="最大化">□</button>
+        <button id="windowClose" class="window-control close" aria-label="关闭">×</button>
+      </div>
+    </header>
+    <main class="shell">
+      <section class="topbar">
+        <div class="brand-row">
+          <h1>Tunnel Helper</h1>
+          <button id="settingsButton" class="icon-button" aria-label="设置">⚙</button>
+        </div>
+        <div class="inline-actions">
+          <button id="refreshAll" class="primary">刷新检测</button>
+        </div>
+      </section>
+
+      <div class="app-layout">
+        <aside class="sidebar">
+          <nav class="tabs">
+            <button class="tab active" data-page="keysPage">密钥管理</button>
+            <button class="tab" data-page="installPage">密钥生成与安装</button>
+            <button class="tab" data-page="profilesPage">配置管理</button>
+            <button class="tab" data-page="connectPage">连接配置</button>
+            <button class="tab" data-page="connectionsPage">Connections</button>
+            <button class="tab" data-page="logsPage">Logs</button>
+          </nav>
+        </aside>
+
+        <div class="content">
+          <section id="keysPage" class="page active">
+        <div class="grid">
+          <article class="panel span-6">
+            <div class="panel-title">
+              <h2>用户密钥</h2>
+              <div class="title-actions">
+                <button id="openUserKeyDir" class="link-button">打开文件位置↗</button>
+                <span id="userKeyCount">0 个</span>
+                <label class="check">
+                  <input id="selectAllUserKeys" type="checkbox" />
+                  全选
+                </label>
+              </div>
+            </div>
+            <div id="userKeyList" class="key-list"></div>
+          </article>
+
+          <article class="panel span-6">
+            <div class="panel-title">
+              <h2>程序相对目录密钥</h2>
+              <div class="title-actions">
+                <button id="openPortableKeyDir" class="link-button">打开文件位置↗</button>
+                <span id="portableKeyCount">0 个</span>
+                <label class="check">
+                  <input id="selectAllPortableKeys" type="checkbox" />
+                  全选
+                </label>
+              </div>
+            </div>
+            <div id="portableKeyList" class="key-list"></div>
+          </article>
+
+          <article class="panel span-12">
+            <div class="panel-title">
+              <h2>密钥操作</h2>
+            </div>
+            <div id="selectedKeyLabel" class="selection-summary">未选择</div>
+            <div class="toolbar">
+              <label class="check">
+                <input id="selectAllKeys" type="checkbox" />
+                全选
+              </label>
+              <label class="check">
+                <input id="allowImport" type="checkbox" />
+                允许导入到 ~/.ssh
+              </label>
+              <button id="exportPublicBundle" class="hinted" data-tooltip="只导出公钥，把选中密钥的 .pub 内容合并到 ssh_public_keys_bundle.pub。">导出公钥 bundle</button>
+              <button id="deleteSelectedKeys" class="danger hinted" data-tooltip="删除选中的私钥和对应 .pub 文件。删除前会再次确认。">删除选定密钥</button>
+              <button id="exportSelectedKey" class="hinted" data-tooltip="把用户 ~/.ssh 中选择的私钥/公钥复制到程序目录 ssh_keyfiles_export。">导出到程序目录</button>
+              <button id="importSelectedKey" class="hinted" data-tooltip="把程序目录 ssh_keyfiles_export 中选择的密钥复制回用户 ~/.ssh，需要先勾选安全开关。">导入到 ~/.ssh</button>
+            </div>
+          </article>
+
+        </div>
+          </section>
+
+          <section id="installPage" class="page">
+            <div class="grid">
+              <article class="panel span-12">
+                <div class="panel-title">
+                  <h2>1 密钥生成</h2>
+                </div>
+                <div class="form-grid install-grid">
+                  <label>
+                    服务器用户
+                    <input id="keygenUser" />
+                  </label>
+                  <label>
+                    服务器地址
+                    <input id="keygenHost" />
+                  </label>
+                  <label>
+                    <span class="label-row">
+                      密钥后缀
+                      <span class="info-dot" data-tooltip="可选。只参与生成的密钥文件名。&#10;例如填 1 会生成 id_ed25519_user_1，&#10;不影响密钥算法或强度。">!</span>
+                    </span>
+                    <input id="keygenOffset" />
+                  </label>
+                  <label>
+                    新密钥名称
+                    <input id="installKeyName" />
+                  </label>
+                  <label>
+                    <span class="label-row">
+                      私钥密码（可选）
+                      <span class="info-dot" data-tooltip="留空会生成免密码私钥，适合自动连接。&#10;填写后会保护私钥，但每次使用该密钥时可能需要输入这个密码。">!</span>
+                    </span>
+                    <input id="keygenPassphrase" type="password" autocomplete="new-password" />
+                  </label>
+                </div>
+                <div class="install-actions single-action">
+                  <button id="generateInstallKey" class="primary">生成密钥</button>
+                </div>
+              </article>
+
+              <article class="panel span-12">
+                <div class="panel-title">
+                  <h2>2 密钥安装</h2>
+                  <button id="syncInstallFields">自动填充</button>
+                </div>
+                <div class="form-grid install-grid">
+                  <label>
+                    服务器用户
+                    <input id="installUser" />
+                  </label>
+                  <label>
+                    服务器地址
+                    <input id="installHost" />
+                  </label>
+                  <label>
+                    SSH 端口
+                    <input id="installPort" type="number" min="1" max="65535" value="22" />
+                  </label>
+                  <label>
+                    <span class="label-row">
+                      服务器密码
+                      <span class="info-dot" data-tooltip="填写后会通过临时 askpass 脚本交给 ssh.exe，&#10;后台自动安装公钥，不需要手动输入。&#10;留空时仍会打开终端让你手动输入。">!</span>
+                    </span>
+                    <input id="installPassword" type="password" autocomplete="off" />
+                  </label>
+                  <label>
+                    公钥文件
+                    <select id="publicKeySelect"></select>
+                  </label>
+                </div>
+                <div class="install-actions single-action">
+                  <button id="installPublicKeyTerminal" class="primary">终端安装</button>
+                </div>
+                <div class="silent-install-box">
+                  <label>
+                    服务器已有登录密钥
+                    <select id="silentIdentityKey"></select>
+                  </label>
+                  <div class="action-with-info">
+                    <button id="installPublicKey" class="primary">静默安装公钥</button>
+                    <span
+                      class="info-dot"
+                      data-tooltip="必要条件：服务器已能用左侧密钥登录。&#10;工作方式：先用已有密钥登录服务器，&#10;再追加上方选择的公钥文件。&#10;第一次安装请使用终端安装。"
+                    >!</span>
+                  </div>
+                </div>
+              </article>
+
+              <article class="panel span-12">
+                <div class="panel-title">
+                  <h2>3 密钥验证</h2>
+                </div>
+                <div class="form-grid install-grid">
+                  <label>
+                    验证使用密钥
+                    <select id="verifyIdentityKey"></select>
+                  </label>
+                  <label>
+                    私钥密码（可选）
+                    <input id="verifyIdentityPassphrase" type="password" autocomplete="off" />
+                  </label>
+                </div>
+                <div class="install-actions single-action">
+                  <button id="verifyInstalledKey">验证密钥登录</button>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section id="profilesPage" class="page">
+        <div class="grid">
+          <article class="panel span-4">
+            <div class="panel-title">
+              <h2>配置档案</h2>
+              <button id="newProfile">新增</button>
+            </div>
+            <div id="profileList" class="profile-list"></div>
+          </article>
+
+          <article class="panel span-8">
+            <div class="panel-title">
+              <h2>编辑 profiles.json</h2>
+              <div class="inline-actions">
+                <button id="deleteProfile" class="danger">删除此配置</button>
+                <button id="saveProfiles">保存</button>
+                <button id="applyProfile" class="primary">应用到连接</button>
+              </div>
+            </div>
+            <div class="form-grid">
+              <label>
+                档案名称
+                <input id="profileName" />
+              </label>
+              <label>
+                SSH 别名
+                <input id="profileAlias" />
+              </label>
+              <label>
+                服务器用户
+                <input id="profileUser" />
+              </label>
+              <label>
+                服务器地址
+                <input id="profileHost" />
+              </label>
+              <label>
+                服务器端口
+                <input id="profileServerPort" type="number" min="1" max="65535" />
+              </label>
+              <label>
+                本地起始端口
+                <input id="profileLocalPort" type="number" min="1" max="65535" />
+              </label>
+              <label>
+                认证方式
+                <select id="profileAuthMode">
+                  <option value="key">使用密钥</option>
+                  <option value="password">使用密码</option>
+                </select>
+              </label>
+              <label>
+                可选密钥
+                <select id="profileKeyName"></select>
+              </label>
+              <label id="profileKeyPassphraseWrap">
+                私钥密码
+                <input id="profileKeyPassphrase" type="password" autocomplete="off" />
+              </label>
+              <label id="profilePasswordWrap" class="hidden">
+                服务器密码
+                <input id="profilePassword" type="password" autocomplete="off" />
+              </label>
+            </div>
+            <pre id="profileJsonPreview" class="config"></pre>
+          </article>
+        </div>
+          </section>
+
+          <section id="connectPage" class="page">
+        <div class="grid">
+          <article class="panel span-7">
+            <div class="panel-title">
+              <h2>连接配置</h2>
+              <span id="portStatus">未检测端口</span>
+            </div>
+            <div class="form-grid">
+              <label>
+                使用档案
+                <select id="connectProfile"></select>
+              </label>
+              <label>
+                认证方式
+                <select id="authMode">
+                  <option value="key">使用密钥</option>
+                  <option value="password">使用密码</option>
+                </select>
+              </label>
+              <label>
+                服务器用户
+                <input id="serverUser" />
+              </label>
+              <label>
+                服务器地址
+                <input id="serverHost" />
+              </label>
+              <label>
+                服务器端口
+                <input id="serverPort" type="number" min="1" max="65535" value="22" />
+              </label>
+              <label>
+                本地端口
+                <input id="localPort" type="number" min="1" max="65535" value="2222" />
+              </label>
+              <label>
+                虚拟机 IP
+                <select id="vmIp"></select>
+              </label>
+              <label>
+                自动检测并更新 VM IP
+                <select id="autoVmIp">
+                  <option value="on">开启</option>
+                  <option value="off">关闭</option>
+                </select>
+              </label>
+              <label>
+                可选密钥
+                <select id="connectKey"></select>
+              </label>
+              <label id="connectKeyPassphraseWrap">
+                私钥密码
+                <input id="connectKeyPassphrase" type="password" autocomplete="off" />
+              </label>
+              <label id="connectPasswordWrap" class="hidden">
+                服务器密码
+                <input id="serverPassword" type="password" autocomplete="off" />
+              </label>
+              <label>
+                SSH 别名
+                <input id="hostAlias" value="tunnel-host" />
+              </label>
+            </div>
+          </article>
+
+          <article class="panel span-5">
+            <div class="panel-title">
+              <h2>隧道控制</h2>
+              <span id="tunnelState">未启动</span>
+            </div>
+            <div class="button-row">
+              <button id="startTunnel" class="primary">启动</button>
+              <button id="openConnections">Connections</button>
+            </div>
+            <div class="form-grid single">
+              <label class="check">
+                <input id="reconnect" type="checkbox" checked />
+                自动重连
+              </label>
+              <label>
+                重连等待秒数
+                <input id="reconnectDelay" type="number" min="1" max="120" value="5" />
+              </label>
+            </div>
+            <div class="button-row">
+              <button id="pingHost">Ping 服务器</button>
+              <button id="sshTest">SSH 测试服务器</button>
+            </div>
+            <div class="button-row secondary-row">
+              <button id="firewallRule">放行防火墙</button>
+              <button id="refreshPort">重新检测端口</button>
+            </div>
+            <pre id="lastCommand" class="command"></pre>
+          </article>
+
+          <article class="panel span-12">
+            <div class="panel-title">
+              <h2>SSH 配置</h2>
+              <div class="inline-actions">
+                <button id="writeConfig" class="hinted" data-tooltip="写入当前用户的 ~/.ssh/config。">写入 ~/.ssh/config</button>
+                <button id="copyConfig" class="hinted" data-tooltip="复制当前 SSH 配置。">复制</button>
+              </div>
+            </div>
+            <pre id="sshConfig" class="config"></pre>
+          </article>
+        </div>
+          </section>
+
+          <section id="connectionsPage" class="page">
+            <div class="grid">
+              <article class="panel span-12">
+                <div class="panel-title">
+                  <h2>Connections</h2>
+                  <div class="title-actions">
+                    <span id="connectionCount">0 个运行中</span>
+                    <button id="clearClosedConnections">清除已断开记录</button>
+                  </div>
+                </div>
+                <div id="connectionList" class="connection-list"></div>
+              </article>
+            </div>
+          </section>
+
+          <section id="logsPage" class="page">
+            <div class="grid">
+              <article class="panel span-12">
+                <div class="panel-title">
+                  <h2>Logs</h2>
+                  <button id="clearLog">清空</button>
+                </div>
+                <pre id="log" class="log"></pre>
+              </article>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div id="toastDock" class="toast-dock"></div>
+      <div id="settingsModal" class="modal hidden">
+        <section class="modal-panel">
+          <div class="panel-title">
+            <h2>设置</h2>
+            <button id="closeSettings" class="icon-button" aria-label="关闭">×</button>
+          </div>
+          <div class="form-grid single">
+            <label>
+              语言
+              <select id="languageSelect">
+                <option value="zh">中文（首选）</option>
+                <option value="en">English</option>
+              </select>
+            </label>
+            <label>
+              鼠标样式
+              <select id="cursorSelect">
+                <option value="NArrowBeadCursor">NArrowBeadCursor</option>
+                <option value="KUDA">KUDA</option>
+                <option value="BlueAxolotl">BlueAxolotl</option>
+                <option value="BlueGlass">蓝色透明玻璃</option>
+                <option value="MilkBlue">牛奶蓝</option>
+                <option value="default">系统默认</option>
+              </select>
+            </label>
+          </div>
+        </section>
+      </div>
+      <div id="confirmModal" class="modal hidden">
+        <section class="modal-panel confirm-panel">
+          <div class="confirm-icon">!</div>
+          <div class="confirm-copy">
+            <h2 id="confirmTitle">确认操作</h2>
+            <p id="confirmMessage"></p>
+          </div>
+          <div class="confirm-actions">
+            <button id="confirmCancel">取消</button>
+            <button id="confirmOk" class="danger">确认</button>
+          </div>
+        </section>
+      </div>
+      <div id="contextMenu" class="context-menu">
+        <button id="contextCopy">复制</button>
+      </div>
+    </main>
+    <script src="./main.js"></script>
+  </body>
+</html>

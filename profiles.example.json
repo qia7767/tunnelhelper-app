@@ -1,0 +1,15 @@
+[
+  {
+    "name": "example",
+    "user": "user",
+    "host": "192.0.2.10",
+    "serverPort": 22,
+    "baseLocalPort": 2222,
+    "identityFileName": "id_ed25519_example",
+    "identityFilePath": null,
+    "identityPassphrase": null,
+    "serverPassword": null,
+    "authMode": "key",
+    "hostAlias": "tunnel-example"
+  }
+]

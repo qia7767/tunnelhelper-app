@@ -1,0 +1,39 @@
+# Dependencies and build outputs
+node_modules/
+src-tauri/target/
+dist/
+
+# Local portable build artifacts
+tunnel-helper.exe
+ioa-tunnel-helper.exe
+backups/
+downloads/
+
+# Private keys and generated public-key bundles
+ssh_keyfiles_export/
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+ssh_public_keys_bundle.pub
+
+# Local user configuration
+profiles.json
+app_settings.json
+
+# Generated previews and caches
+src-tauri/icons/icon-preview.png
+src-tauri/icons/exe-associated-icon.png
+tools/__pycache__/
+*.pyc
+
+# Raw cursor packages may have separate redistribution terms.
+cursor_sources/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,13 @@
+{
+  "language": "zh",
+  "cursor": "default",
+  "defaults": {
+    "keygenUser": "",
+    "keygenHost": "",
+    "keygenOffset": "",
+    "installKeyName": "",
+    "installUser": "",
+    "installHost": "",
+    "installPort": 22
+  }
+}

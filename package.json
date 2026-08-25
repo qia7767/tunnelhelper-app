@@ -1,0 +1,14 @@
+{
+  "name": "tunnel-helper",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.7.0",
+    "@tauri-apps/cli-win32-x64-msvc": "^2.11.4"
+  }
+}
