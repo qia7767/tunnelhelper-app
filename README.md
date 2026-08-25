@@ -2,6 +2,8 @@
 
 Tunnel Helper is a portable Windows desktop app for managing SSH tunnels, SSH keys, connection profiles, and OpenSSH config snippets from a visual interface.
 
+它的目标是把零散的 SSH 命令、密钥文件和连接配置收进一个清晰的可视化流程里，降低重复操作和配置出错的概率。
+
 这个项目最初来自一个很具体的校园网络场景：学校内网访问需要通过腾讯 iOA/VPN 客户端完成。它可以让机器接入校园网络并访问学校服务器，但这类客户端对个人主力系统来说侵入性较强，可能修改系统设置、网络策略或安全配置，因此并不一定适合直接安装在本机。
 
 一个更可控的做法是：准备一台 Windows 虚拟机，把 iOA/VPN 安装在虚拟机中，让虚拟机负责接入校园网络；然后在虚拟机里运行 Tunnel Helper，建立到学校服务器的 SSH 隧道，并放行虚拟机防火墙中的本地监听端口。这样，与该虚拟机处在同一局域网的主机或设备，就可以通过这个隧道访问学校服务器，同时把 iOA/VPN 与个人主力系统做物理和系统层面的隔离。
