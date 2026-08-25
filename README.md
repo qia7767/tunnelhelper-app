@@ -1,5 +1,9 @@
 # Tunnel Helper
 
+<p align="center">
+  <img src="src-tauri/icons/icon.png" alt="Tunnel Helper icon" width="160">
+</p>
+
 Tunnel Helper is a portable Windows desktop app for managing SSH tunnels, SSH keys, connection profiles, and OpenSSH config snippets from a visual interface.
 
 它的目标是把零散的 SSH 命令、密钥文件和连接配置收进一个清晰的可视化流程里，降低重复操作和配置出错的概率。
