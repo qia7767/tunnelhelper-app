@@ -1013,6 +1013,30 @@ pre {
   min-width: 86px;
 }
 
+.shutdown-panel {
+  align-items: center;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: auto 1fr;
+  max-width: 460px;
+  padding: 22px;
+}
+
+.shutdown-spinner {
+  animation: spin 900ms linear infinite;
+  border: 3px solid #dbe7f5;
+  border-top-color: #1f6feb;
+  border-radius: 999px;
+  height: 34px;
+  width: 34px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @keyframes toast-in {
   from {
     opacity: 0;

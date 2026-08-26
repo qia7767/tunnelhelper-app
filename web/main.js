@@ -13,6 +13,7 @@ const state = {
   draggingProfileName: "",
   profileDragMoved: false,
   profileDrag: null,
+  isClosingApp: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -140,6 +141,11 @@ const I18N = {
     passwordTunnelRunning: "密码隧道运行中",
     passwordTunnelStarting: "后台认证中",
     waitingPassword: "等待密码输入",
+    closingConnections: "正在关闭 Connections",
+    closingConnectionsDetail: (count) => `检测到 ${count} 个后台连接，正在停止所有隧道，请稍候。`,
+    closingConnectionProgress: (index, total, name) => `正在关闭 ${index}/${total}：${name}`,
+    closedBeforeExit: "所有 Connections 已关闭",
+    closeAppFailed: "关闭程序失败",
   },
   en: {
     refresh: "Refresh",
@@ -249,6 +255,11 @@ const I18N = {
     passwordTunnelRunning: "Password tunnel running",
     passwordTunnelStarting: "Authenticating",
     waitingPassword: "Waiting for password",
+    closingConnections: "Closing Connections",
+    closingConnectionsDetail: (count) => `${count} background connection(s) found. Stopping all tunnels before exit.`,
+    closingConnectionProgress: (index, total, name) => `Closing ${index}/${total}: ${name}`,
+    closedBeforeExit: "All Connections closed",
+    closeAppFailed: "Failed to close app",
   },
 };
 
@@ -543,6 +554,7 @@ function applyTranslations() {
   setText("#confirmTitle", "confirmOperation");
   setButton("confirmCancel", "cancel");
   setButton("confirmOk", "confirm");
+  setText("#shutdownTitle", "closingConnections");
   setButton("contextCopy", "copy");
 
   setSelectOptionText("languageSelect", "zh", "zhPreferred");
@@ -1523,6 +1535,71 @@ async function stopTunnel(pid) {
   log(released ? "隧道已停止，端口已释放" : "隧道已停止，端口仍被占用", `PID ${pid} / local:${connection.localPort}`);
 }
 
+function connectionName(connection) {
+  return `${connection.alias || connection.user || "ssh"}@${connection.host || "unknown"}`;
+}
+
+function showShutdownModal(count) {
+  $("shutdownTitle").textContent = tr("closingConnections");
+  $("shutdownMessage").textContent = tr("closingConnectionsDetail", count);
+  $("shutdownModal").classList.remove("hidden");
+}
+
+function updateShutdownModal(index, total, connection) {
+  $("shutdownMessage").textContent = tr("closingConnectionProgress", index, total, connectionName(connection));
+}
+
+async function stopConnectionBeforeExit(connection) {
+  log("关闭程序前停止连接", `PID ${connection.pid} / 本地端口: ${connection.localPort}`);
+  try {
+    await invoke("stop_tunnel", { pid: connection.pid });
+  } catch (error) {
+    log("停止连接命令返回异常", `PID ${connection.pid}: ${String(error)}`);
+  }
+
+  const released = await waitForLocalPortReleased(connection.localPort);
+  connection.status = released ? "exited" : "failed";
+  connection.statusText = released ? "已停止，端口已释放" : "已停止，端口仍被占用";
+  renderConnections();
+  return released;
+}
+
+async function closeAppSafely() {
+  if (state.isClosingApp) return;
+  state.isClosingApp = true;
+  const active = runningConnections();
+
+  if (!active.length) {
+    invoke("window_close").catch((error) => {
+      state.isClosingApp = false;
+      log("窗口关闭失败", String(error));
+      showToast(tr("closeAppFailed"), String(error), "error", 5200);
+    });
+    return;
+  }
+
+  showShutdownModal(active.length);
+  showToast(tr("closingConnections"), tr("closingConnectionsDetail", active.length), "info", 5200);
+
+  try {
+    for (const [index, connection] of active.entries()) {
+      updateShutdownModal(index + 1, active.length, connection);
+      await stopConnectionBeforeExit(connection);
+    }
+    clearInterval(state.statusTimer);
+    state.statusTimer = null;
+    $("shutdownMessage").textContent = tr("closedBeforeExit");
+    log("关闭程序前连接清理完成", `${active.length} 个连接`);
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    await invoke("window_close");
+  } catch (error) {
+    state.isClosingApp = false;
+    $("shutdownModal").classList.add("hidden");
+    log("关闭程序失败", String(error));
+    showToast(tr("closeAppFailed"), String(error), "error", 6200);
+  }
+}
+
 async function saveProfiles(showNotice = true) {
   const current = activeProfileFromEditor();
   const currentIndex = state.profiles.findIndex((profile) => profile.name === state.selectedProfileName);
@@ -1843,7 +1920,12 @@ $("windowMaximize").addEventListener("click", () => {
   invoke("window_toggle_maximize").catch((error) => log("窗口最大化失败", String(error)));
 });
 $("windowClose").addEventListener("click", () => {
-  invoke("window_close").catch((error) => log("窗口关闭失败", String(error)));
+  closeAppSafely().catch((error) => {
+    state.isClosingApp = false;
+    $("shutdownModal").classList.add("hidden");
+    log("窗口关闭失败", String(error));
+    showToast(tr("closeAppFailed"), String(error), "error", 6200);
+  });
 });
 $("settingsButton").addEventListener("click", () => {
   $("settingsModal").classList.remove("hidden");
