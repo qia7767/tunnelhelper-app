@@ -146,6 +146,146 @@ const I18N = {
     closingConnectionProgress: (index, total, name) => `正在关闭 ${index}/${total}：${name}`,
     closedBeforeExit: "所有 Connections 已关闭",
     closeAppFailed: "关闭程序失败",
+    tooltipPublicBundle: "只导出公钥，把选中密钥的 .pub 内容合并到 ssh_public_keys_bundle.pub。",
+    tooltipDeleteKeys: "删除选中的私钥和对应 .pub 文件。删除前会再次确认。",
+    tooltipExportPortable: "把用户 ~/.ssh 中选择的私钥/公钥复制到程序目录 ssh_keyfiles_export。",
+    tooltipImportSsh: "把程序目录 ssh_keyfiles_export 中选择的密钥复制回用户 ~/.ssh，需要先勾选安全开关。",
+    tooltipKeySuffix: "可选。只参与生成的密钥文件名。\n例如填 1 会生成 id_ed25519_user_1，\n不影响密钥算法或强度。",
+    tooltipKeyPassphrase: "留空会生成免密码私钥，适合自动连接。\n填写后会保护私钥，但每次使用该密钥时可能需要输入这个密码。",
+    tooltipServerPassword: "填写后会通过临时 askpass 脚本交给 ssh.exe，\n后台自动安装公钥，不需要手动输入。\n留空时仍会打开终端让你手动输入。",
+    tooltipSilentInstall: "必要条件：服务器已能用左侧密钥登录。\n工作方式：先用已有密钥登录服务器，\n再追加上方选择的公钥文件。\n第一次安装请使用终端安装。",
+    tooltipWriteSshConfig: "写入当前用户的 ~/.ssh/config。",
+    tooltipCopySshConfig: "复制当前 SSH 配置。",
+    refreshRunning: "刷新检测中",
+    refreshRunningDetail: "正在扫描密钥、读取配置、检测虚拟机 IP 和本地端口。",
+    refreshComplete: "刷新完成",
+    refreshCompleteDetail: "密钥、配置、虚拟机 IP 和端口状态已更新。",
+    refreshFailed: "刷新失败",
+    testingKeyLogin: "正在测试密钥登录",
+    startStopped: "启动已停止",
+    keyLoginReady: "密钥登录可用",
+    startTunnelNow: "开始启动隧道",
+    missingServerPassword: "缺少服务器密码",
+    passwordRequired: "密码认证模式需要填写服务器密码。",
+    testingPasswordAuth: "正在测试密码认证",
+    passwordAuthFailed: "密码认证失败",
+    passwordAuthReady: "密码认证通过",
+    startingPasswordTunnel: "正在启动密码隧道",
+    preparingPasswordTunnel: "准备启动密码隧道",
+    askpassTunnelDetail: "将通过临时 askpass 脚本后台自动认证。",
+    missingPasswordTunnelDetail: "未填写服务器密码，可能无法自动认证。",
+    startingTunnel: "正在启动隧道",
+    tunnelStarted: "隧道进程已启动",
+    confirmingTunnel: (pid) => `PID ${pid}，正在确认连接状态`,
+    passwordTunnelConnected: "密码隧道已连接",
+    tunnelConnected: "隧道已连接",
+    tunnelExited: "隧道已退出",
+    portReleased: "端口已释放",
+    portStillBusy: "端口仍被占用",
+    tunnelStoppedReleased: "隧道已停止，端口已释放",
+    tunnelStoppedBusy: "隧道已停止，但端口仍被占用",
+    localPortDetail: (port) => `本地端口 ${port}`,
+    configSaved: "配置已保存",
+    profileAdded: "已新增配置",
+    profileApplied: "已保存并应用到连接",
+    profileSaveFailed: "保存配置失败",
+    profileDeleteTitle: "删除配置档案",
+    profileDeleteMessage: (name) => `确认删除配置“${name}”？这个操作会立即写入 profiles.json。`,
+    delete: "删除",
+    profileDeleted: "配置已删除",
+    noUserKeysToExport: "没有可导出的用户密钥",
+    selectUserKeysToExport: "请选择左侧用户密钥后再导出到程序目录。",
+    exportingKeys: "正在导出密钥",
+    exportKeysDetail: (count) => `${count} 个用户密钥 -> ssh_keyfiles_export`,
+    exportDone: "导出完成",
+    exportDoneDetail: (count) => `${count} 个密钥已复制到程序目录。`,
+    noPortableKeysToImport: "没有可导入的程序目录密钥",
+    selectPortableKeysToImport: "请选择右侧程序目录密钥。",
+    importBlocked: "导入被安全开关拦截",
+    importBlockedDetail: "请先勾选“允许导入到 ~/.ssh”，再执行导入。",
+    importingKeys: "正在导入密钥",
+    importKeysDetail: (count) => `${count} 个程序目录密钥 -> ~/.ssh`,
+    importDone: "导入完成",
+    importDoneDetail: (count) => `${count} 个密钥已复制到用户 ~/.ssh。`,
+    noPublicKeys: "没有可导出的公钥",
+    selectPublicKeys: "请选择带 .pub 的密钥。bundle 只包含公钥内容。",
+    exportingPublicBundle: "正在导出公钥 bundle",
+    publicBundleDetail: (count) => `${count} 个公钥将合并为 ssh_public_keys_bundle.pub`,
+    publicBundleDone: "公钥 bundle 已生成",
+    noKeysToDelete: "没有可删除的密钥",
+    selectKeysToDelete: "请先勾选要删除的密钥。",
+    deleteKeysMessage: (count, names) => `确认删除 ${count} 个密钥？会同时删除对应的 .pub 文件。\n${names}`,
+    deletingKeys: "正在删除密钥",
+    deletingKeysDetail: (count) => `${count} 个选中密钥`,
+    keysDeleted: "密钥删除完成",
+    keysDeletedDetail: (count) => `${count} 个密钥已删除。`,
+    settingsUpdated: "设置已更新",
+    languageSaved: "语言设置已保存",
+    cursorApplied: "鼠标样式已应用",
+    userKeyDirOpening: "正在打开用户密钥目录",
+    userKeyDirOpened: "用户密钥目录已打开",
+    portableKeyDirOpening: "正在打开程序相对目录",
+    portableKeyDirOpened: "程序相对目录已打开",
+    installFieldsFilled: "安装信息已填充",
+    installSuccess: "公钥安装成功",
+    installFailed: "公钥安装失败",
+    silentInstallDone: "静默安装完成",
+    silentInstallFailed: "静默安装失败",
+    publicInstallDone: "公钥安装完成",
+    terminalInstallOpened: "终端安装已打开",
+    keyExistsSelected: "密钥已存在，已选中",
+    keyGenerated: "密钥已生成",
+    verifyFailed: "验证失败",
+    keyVerifyFailed: "密钥登录验证失败",
+    writingSshConfig: "正在写入 ~/.ssh/config",
+    writeSshConfigDetail: "会写入当前用户的 OpenSSH 配置文件。",
+    sshConfigWritten: "~/.ssh/config 已写入",
+    pingOk: "Ping 成功",
+    pingFailed: "Ping 失败或超时",
+    testingSsh: "正在测试 SSH",
+    sshReachable: "SSH 服务可达",
+    sshCheckFailed: "SSH 检测失败",
+    requestingAdmin: "正在请求管理员权限",
+    uacDetail: "确认 UAC 后会隐藏执行窗口",
+    firewallRequested: "防火墙放行已请求",
+    firewallFailed: "防火墙放行失败",
+    firewallAllowed: "防火墙已放行",
+    sshConfigCopied: "SSH 配置已复制",
+    pasteReady: "可以直接粘贴使用。",
+    copyFailed: "复制失败",
+    logCleared: "日志已清空",
+    copied: "已复制",
+    charsCopied: (count) => `${count} 个字符`,
+    closedRecordsCleared: "已清除断开记录",
+    recordsCount: (count) => `${count} 条`,
+    busyExporting: "导出中",
+    busyImporting: "导入中",
+    busyDeleting: "删除中",
+    busyOpening: "打开中",
+    busyFilling: "填充中",
+    busyInstalling: "安装中",
+    busyGenerating: "生成中",
+    busyVerifying: "验证中",
+    busyWriting: "写入中",
+    busyCopying: "复制中",
+    busyStopping: "停止中",
+    busyAllowing: "放行中",
+    busyAdding: "新增中",
+    busyApplying: "应用中",
+    busySaving: "保存中",
+    busyStarting: "启动中",
+    busyPinging: "Ping 中",
+    busyTesting: "测试中",
+    busyChecking: "检测中",
+    profileOrderSaved: "配置顺序已保存",
+    firstProfile: (name) => `优先档案：${name || "无"}`,
+    exportFailed: "导出失败",
+    importFailed: "导入失败",
+    publicBundleFailed: "导出公钥失败",
+    deleteKeysFailed: "删除密钥失败",
+    openFailed: "打开失败",
+    keyGenerateFailed: "生成密钥失败",
+    writeSshConfigFailed: "写入 ~/.ssh/config 失败",
   },
   en: {
     refresh: "Refresh",
@@ -260,6 +400,146 @@ const I18N = {
     closingConnectionProgress: (index, total, name) => `Closing ${index}/${total}: ${name}`,
     closedBeforeExit: "All Connections closed",
     closeAppFailed: "Failed to close app",
+    tooltipPublicBundle: "Export public keys only. The selected .pub files are merged into ssh_public_keys_bundle.pub.",
+    tooltipDeleteKeys: "Delete selected private keys and matching .pub files. A confirmation is required.",
+    tooltipExportPortable: "Copy selected private/public keys from user ~/.ssh to ssh_keyfiles_export in the app folder.",
+    tooltipImportSsh: "Copy selected keys from ssh_keyfiles_export back to user ~/.ssh. The safety switch must be enabled first.",
+    tooltipKeySuffix: "Optional. Used only as the generated key filename suffix.\nFor example, 1 creates id_ed25519_user_1.\nIt does not affect key algorithm or strength.",
+    tooltipKeyPassphrase: "Leave empty to create a key without passphrase, suitable for automatic connection.\nIf filled, the private key is protected and may require this passphrase when used.",
+    tooltipServerPassword: "If filled, a temporary askpass script passes it to ssh.exe,\nso public key installation can run in the background.\nIf empty, a terminal opens for manual password input.",
+    tooltipSilentInstall: "Requirement: the server can already be accessed with the key on the left.\nHow it works: log in with the existing key,\nthen append the selected public key.\nFor first-time setup, use Terminal Install.",
+    tooltipWriteSshConfig: "Write to the current user's ~/.ssh/config.",
+    tooltipCopySshConfig: "Copy the current SSH config.",
+    refreshRunning: "Refreshing",
+    refreshRunningDetail: "Scanning keys, loading profiles, detecting VM IP and local port.",
+    refreshComplete: "Refresh complete",
+    refreshCompleteDetail: "Keys, profiles, VM IP, and port status are up to date.",
+    refreshFailed: "Refresh failed",
+    testingKeyLogin: "Testing key login",
+    startStopped: "Start stopped",
+    keyLoginReady: "Key login ready",
+    startTunnelNow: "Starting tunnel",
+    missingServerPassword: "Missing server password",
+    passwordRequired: "Password authentication requires a server password.",
+    testingPasswordAuth: "Testing password authentication",
+    passwordAuthFailed: "Password authentication failed",
+    passwordAuthReady: "Password authentication ready",
+    startingPasswordTunnel: "Starting password tunnel",
+    preparingPasswordTunnel: "Preparing password tunnel",
+    askpassTunnelDetail: "A temporary askpass script will authenticate in the background.",
+    missingPasswordTunnelDetail: "Server password is empty, so automatic authentication may fail.",
+    startingTunnel: "Starting tunnel",
+    tunnelStarted: "Tunnel process started",
+    confirmingTunnel: (pid) => `PID ${pid}, checking connection status`,
+    passwordTunnelConnected: "Password tunnel connected",
+    tunnelConnected: "Tunnel connected",
+    tunnelExited: "Tunnel exited",
+    portReleased: "Port released",
+    portStillBusy: "Port still busy",
+    tunnelStoppedReleased: "Tunnel stopped, port released",
+    tunnelStoppedBusy: "Tunnel stopped, but port is still busy",
+    localPortDetail: (port) => `Local port ${port}`,
+    configSaved: "Profile saved",
+    profileAdded: "Profile added",
+    profileApplied: "Saved and applied to Connection",
+    profileSaveFailed: "Failed to save profile",
+    profileDeleteTitle: "Delete Profile",
+    profileDeleteMessage: (name) => `Delete profile "${name}"? This will be written to profiles.json immediately.`,
+    delete: "Delete",
+    profileDeleted: "Profile deleted",
+    noUserKeysToExport: "No user keys to export",
+    selectUserKeysToExport: "Select user keys on the left before exporting to the app folder.",
+    exportingKeys: "Exporting keys",
+    exportKeysDetail: (count) => `${count} user key(s) -> ssh_keyfiles_export`,
+    exportDone: "Export complete",
+    exportDoneDetail: (count) => `${count} key(s) copied to the app folder.`,
+    noPortableKeysToImport: "No portable keys to import",
+    selectPortableKeysToImport: "Select app-folder keys on the right.",
+    importBlocked: "Import blocked by safety switch",
+    importBlockedDetail: "Enable \"Allow import to ~/.ssh\" before importing.",
+    importingKeys: "Importing keys",
+    importKeysDetail: (count) => `${count} app-folder key(s) -> ~/.ssh`,
+    importDone: "Import complete",
+    importDoneDetail: (count) => `${count} key(s) copied to user ~/.ssh.`,
+    noPublicKeys: "No public keys to export",
+    selectPublicKeys: "Select keys with .pub files. The bundle contains public keys only.",
+    exportingPublicBundle: "Exporting public key bundle",
+    publicBundleDetail: (count) => `${count} public key(s) will be merged into ssh_public_keys_bundle.pub`,
+    publicBundleDone: "Public key bundle generated",
+    noKeysToDelete: "No keys to delete",
+    selectKeysToDelete: "Select keys to delete first.",
+    deleteKeysMessage: (count, names) => `Delete ${count} key(s)? Matching .pub files will also be deleted.\n${names}`,
+    deletingKeys: "Deleting keys",
+    deletingKeysDetail: (count) => `${count} selected key(s)`,
+    keysDeleted: "Keys deleted",
+    keysDeletedDetail: (count) => `${count} key(s) deleted.`,
+    settingsUpdated: "Settings updated",
+    languageSaved: "Language saved",
+    cursorApplied: "Cursor style applied",
+    userKeyDirOpening: "Opening user key folder",
+    userKeyDirOpened: "User key folder opened",
+    portableKeyDirOpening: "Opening app key folder",
+    portableKeyDirOpened: "App key folder opened",
+    installFieldsFilled: "Install fields filled",
+    installSuccess: "Public key installed",
+    installFailed: "Public key installation failed",
+    silentInstallDone: "Silent install complete",
+    silentInstallFailed: "Silent install failed",
+    publicInstallDone: "Public key installation complete",
+    terminalInstallOpened: "Terminal install opened",
+    keyExistsSelected: "Key already exists and selected",
+    keyGenerated: "Key generated",
+    verifyFailed: "Verification failed",
+    keyVerifyFailed: "Key login verification failed",
+    writingSshConfig: "Writing ~/.ssh/config",
+    writeSshConfigDetail: "This writes to the current user's OpenSSH config file.",
+    sshConfigWritten: "~/.ssh/config written",
+    pingOk: "Ping succeeded",
+    pingFailed: "Ping failed or timed out",
+    testingSsh: "Testing SSH",
+    sshReachable: "SSH reachable",
+    sshCheckFailed: "SSH check failed",
+    requestingAdmin: "Requesting administrator permission",
+    uacDetail: "Confirm UAC; the execution window will be hidden.",
+    firewallRequested: "Firewall rule requested",
+    firewallFailed: "Firewall rule failed",
+    firewallAllowed: "Firewall allowed",
+    sshConfigCopied: "SSH config copied",
+    pasteReady: "Ready to paste.",
+    copyFailed: "Copy failed",
+    logCleared: "Log cleared",
+    copied: "Copied",
+    charsCopied: (count) => `${count} characters`,
+    closedRecordsCleared: "Closed records cleared",
+    recordsCount: (count) => `${count} record(s)`,
+    busyExporting: "Exporting",
+    busyImporting: "Importing",
+    busyDeleting: "Deleting",
+    busyOpening: "Opening",
+    busyFilling: "Filling",
+    busyInstalling: "Installing",
+    busyGenerating: "Generating",
+    busyVerifying: "Verifying",
+    busyWriting: "Writing",
+    busyCopying: "Copying",
+    busyStopping: "Stopping",
+    busyAllowing: "Allowing",
+    busyAdding: "Adding",
+    busyApplying: "Applying",
+    busySaving: "Saving",
+    busyStarting: "Starting",
+    busyPinging: "Pinging",
+    busyTesting: "Testing",
+    busyChecking: "Checking",
+    profileOrderSaved: "Profile order saved",
+    firstProfile: (name) => `First profile: ${name || "none"}`,
+    exportFailed: "Export failed",
+    importFailed: "Import failed",
+    publicBundleFailed: "Public bundle export failed",
+    deleteKeysFailed: "Delete keys failed",
+    openFailed: "Open failed",
+    keyGenerateFailed: "Generate key failed",
+    writeSshConfigFailed: "Failed to write ~/.ssh/config",
   },
 };
 
@@ -296,6 +576,13 @@ function setLabelText(inputId, key) {
 function setSelectOptionText(selectId, value, key) {
   const option = $(`${selectId}`)?.querySelector(`option[value="${CSS.escape(value)}"]`);
   if (option) option.textContent = tr(key);
+}
+
+function setTooltip(selectorOrId, key) {
+  const element = selectorOrId.startsWith("#") || selectorOrId.startsWith(".")
+    ? document.querySelector(selectorOrId)
+    : $(selectorOrId);
+  if (element) element.dataset.tooltip = tr(key);
 }
 
 function log(message, detail = "") {
@@ -464,6 +751,10 @@ function applyTranslations() {
   setButton("deleteSelectedKeys", "deleteSelectedKeys");
   setButton("exportSelectedKey", "exportToPortable");
   setButton("importSelectedKey", "importToSsh");
+  setTooltip("exportPublicBundle", "tooltipPublicBundle");
+  setTooltip("deleteSelectedKeys", "tooltipDeleteKeys");
+  setTooltip("exportSelectedKey", "tooltipExportPortable");
+  setTooltip("importSelectedKey", "tooltipImportSsh");
 
   document.querySelectorAll("label.check").forEach((label) => {
     const input = label.querySelector("input");
@@ -494,6 +785,10 @@ function applyTranslations() {
     const textNode = row ? [...row.childNodes].find((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim()) : null;
     if (textNode) textNode.textContent = `\n                      ${tr(key)}\n                      `;
   }
+  setTooltip("#keygenOffsetInfo", "tooltipKeySuffix");
+  setTooltip("#keygenPassphraseInfo", "tooltipKeyPassphrase");
+  setTooltip("#installPasswordInfo", "tooltipServerPassword");
+  setTooltip("#silentInstallInfo", "tooltipSilentInstall");
   setLabelText("installUser", "serverUser");
   setLabelText("installHost", "serverHost");
   setLabelText("installPort", "sshPort");
@@ -543,6 +838,8 @@ function applyTranslations() {
   setText("#connectPage article:nth-of-type(3) h2", "sshConfig");
   setButton("writeConfig", "writeSshConfig");
   setButton("copyConfig", "copy");
+  setTooltip("writeConfig", "tooltipWriteSshConfig");
+  setTooltip("copyConfig", "tooltipCopySshConfig");
 
   setText("#connectionsPage h2", "connections");
   setButton("clearClosedConnections", "clearClosed");
@@ -1026,7 +1323,7 @@ async function persistProfileOrder() {
   await invoke("save_profiles", { profiles: state.profiles });
   renderProfileLists();
   log("配置档案顺序已更新", state.profiles.map((profile) => profile.name).join(" -> "));
-  showToast(lang() === "en" ? "Profile order saved" : "配置顺序已保存", lang() === "en" ? `First profile: ${state.profiles[0]?.name || "none"}` : `优先档案：${state.profiles[0]?.name || "无"}`, "success", 2600);
+  showToast(tr("profileOrderSaved"), tr("firstProfile", state.profiles[0]?.name), "success", 2600);
 }
 
 function reorderProfiles(sourceName, targetName, afterTarget) {
@@ -1263,7 +1560,7 @@ async function refreshPort(showNotice = false) {
   const port = await invoke("find_free_port", { startPort: start });
   $("localPort").value = port;
   $("portStatus").textContent = port === start ? tr("portAvailable") : tr("usingPort", port);
-  if (showNotice) showToast(port === start ? tr("portAvailable") : (lang() === "en" ? "Using available port" : "已改用可用端口"), `${tr("localPort")} ${port}`, "success");
+  if (showNotice) showToast(port === start ? tr("portAvailable") : tr("usingPort", port), `${tr("localPort")} ${port}`, "success");
 }
 
 function updateAuthMode() {
@@ -1295,7 +1592,7 @@ async function updateConfig() {
 }
 
 async function testKeyBeforeTunnel(request) {
-  showToast("正在测试密钥登录", `${request.user}@${request.host}:${request.server_port}`, "info", 4200);
+  showToast(tr("testingKeyLogin"), `${request.user}@${request.host}:${request.server_port}`, "info", 4200);
   log("启动前 SSH 测试", `${request.user}@${request.host}:${request.server_port}\n密钥: ${request.identity_file || "未指定"}`);
   const result = await invoke("test_ssh_server", {
     user: request.user,
@@ -1308,21 +1605,21 @@ async function testKeyBeforeTunnel(request) {
   if (!result.success) {
     const reason = result.message.split("\n")[0];
     $("tunnelState").textContent = reason;
-    showToast("启动已停止", reason, "error", 7200);
+    showToast(tr("startStopped"), reason, "error", 7200);
     return false;
   }
-  showToast("密钥登录可用", "开始启动隧道", "success", 2600);
+  showToast(tr("keyLoginReady"), tr("startTunnelNow"), "success", 2600);
   return true;
 }
 
 async function testPasswordBeforeTunnel(request) {
   if (!request.password) {
-    $("tunnelState").textContent = "缺少服务器密码";
-    showToast("启动已停止", "密码认证模式需要填写服务器密码。", "error", 5200);
+    $("tunnelState").textContent = tr("missingServerPassword");
+    showToast(tr("startStopped"), tr("passwordRequired"), "error", 5200);
     log("启动前密码认证失败", "未填写服务器密码。");
     return false;
   }
-  showToast("正在测试密码认证", `${request.user}@${request.host}:${request.server_port}`, "info", 4200);
+  showToast(tr("testingPasswordAuth"), `${request.user}@${request.host}:${request.server_port}`, "info", 4200);
   log("启动前密码认证测试", `${request.user}@${request.host}:${request.server_port}`);
   const result = await invoke("test_password_ssh_server", {
     user: request.user,
@@ -1332,11 +1629,11 @@ async function testPasswordBeforeTunnel(request) {
   });
   log(result.success ? "启动前密码认证通过" : "启动前密码认证失败", result.message);
   if (!result.success) {
-    $("tunnelState").textContent = "密码认证失败";
-    showToast("启动已停止", result.message.split("\n")[0], "error", 7200);
+    $("tunnelState").textContent = tr("passwordAuthFailed");
+    showToast(tr("startStopped"), result.message.split("\n")[0], "error", 7200);
     return false;
   }
-  showToast("密码认证通过", "开始启动隧道", "success", 2600);
+  showToast(tr("passwordAuthReady"), tr("startTunnelNow"), "success", 2600);
   return true;
 }
 
@@ -1363,12 +1660,12 @@ async function refreshAllFromButton() {
   button.disabled = true;
   button.classList.add("loading", "is-busy");
   button.textContent = tr("refreshing");
-  showToast(lang() === "en" ? "Refreshing" : "刷新检测中", lang() === "en" ? "Scanning keys, loading profiles, detecting VM IP and local port." : "正在扫描密钥、读取配置、检测虚拟机 IP 和本地端口。", "info", 4200);
+  showToast(tr("refreshRunning"), tr("refreshRunningDetail"), "info", 4200);
   try {
     await refreshAll();
-    showToast(lang() === "en" ? "Refresh complete" : "刷新完成", lang() === "en" ? "Keys, profiles, VM IP, and port status are up to date." : "密钥、配置、虚拟机 IP 和端口状态已更新。", "success", 3200);
+    showToast(tr("refreshComplete"), tr("refreshCompleteDetail"), "success", 3200);
   } catch (error) {
-    showToast("刷新失败", String(error), "error", 5600);
+    showToast(tr("refreshFailed"), String(error), "error", 5600);
     throw error;
   } finally {
     button.disabled = false;
@@ -1404,7 +1701,7 @@ function startStatusTimer() {
             connection.status = "running";
             connection.statusText = connection.authMode === "password" ? tr("passwordTunnelRunning") : tr("running");
             showToast(
-              connection.authMode === "password" ? "密码隧道已连接" : "隧道已连接",
+              connection.authMode === "password" ? tr("passwordTunnelConnected") : tr("tunnelConnected"),
               `${connection.alias || connection.host} / PID ${connection.pid}`,
               "success",
             );
@@ -1412,9 +1709,9 @@ function startStatusTimer() {
         } else {
           connection.status = "exited";
           const released = await invoke("is_local_port_available", { port: connection.localPort });
-          connection.statusText = `${status.exit_code == null ? "已退出" : `已退出 ${status.exit_code}`}，${released ? "端口已释放" : "端口仍被占用"}`;
+          connection.statusText = `${status.exit_code == null ? tr("tunnelExited") : `${tr("tunnelExited")} ${status.exit_code}`}，${released ? tr("portReleased") : tr("portStillBusy")}`;
           log("隧道进程已退出", `PID ${connection.pid} / exit=${status.exit_code ?? "unknown"}`);
-          showToast("隧道已退出", `${connection.alias || connection.host} / exit=${status.exit_code ?? "unknown"}`, "error", 5200);
+          showToast(tr("tunnelExited"), `${connection.alias || connection.host} / exit=${status.exit_code ?? "unknown"}`, "error", 5200);
         }
       } catch (error) {
         connection.status = "failed";
@@ -1441,7 +1738,7 @@ async function startTunnel() {
     };
   $("tunnelState").textContent = lang() === "en" ? "Testing password" : "测试密码";
     if (!(await testPasswordBeforeTunnel(request))) return;
-    showToast(password ? "正在启动密码隧道" : "准备启动密码隧道", password ? "将通过临时 askpass 脚本后台自动认证。" : "未填写服务器密码，可能无法自动认证。", "info", 5200);
+    showToast(password ? tr("startingPasswordTunnel") : tr("preparingPasswordTunnel"), password ? tr("askpassTunnelDetail") : tr("missingPasswordTunnelDetail"), "info", 5200);
     log("启动密码模式隧道", JSON.stringify({ ...request, password: password ? "***" : "" }, null, 2));
     const result = await invoke("start_password_tunnel", { request });
     const connection = {
@@ -1479,7 +1776,7 @@ async function startTunnel() {
   $("tunnelState").textContent = lang() === "en" ? "Testing SSH" : "测试 SSH";
   if (!(await testKeyBeforeTunnel(request))) return;
 
-  showToast("正在启动隧道", `${request.user}@${request.host}:${request.server_port}`, "info");
+  showToast(tr("startingTunnel"), `${request.user}@${request.host}:${request.server_port}`, "info");
   log("启动隧道", JSON.stringify({ ...request, identity_passphrase: request.identity_passphrase ? "***" : null }, null, 2));
   const result = await invoke("start_tunnel", { request });
   const connection = {
@@ -1499,7 +1796,7 @@ async function startTunnel() {
   state.connections.unshift(connection);
   $("lastCommand").textContent = result.command;
   log("隧道进程已启动", result.command);
-  showToast("隧道进程已启动", `PID ${result.pid}，正在确认连接状态`, "success");
+  showToast(tr("tunnelStarted"), tr("confirmingTunnel", result.pid), "success");
   renderConnections();
   startStatusTimer();
 }
@@ -1520,15 +1817,15 @@ async function stopTunnel(pid) {
   await invoke("stop_tunnel", { pid });
   const released = await waitForLocalPortReleased(connection.localPort);
   connection.status = "exited";
-  connection.statusText = released ? "已停止，端口已释放" : "已停止，端口仍被占用";
+  connection.statusText = released ? tr("tunnelStoppedReleased") : tr("tunnelStoppedBusy");
   renderConnections();
   if (Number($("localPort").value) === Number(connection.localPort)) {
-    $("portStatus").textContent = released ? "端口已释放" : "端口仍被占用";
+    $("portStatus").textContent = released ? tr("portReleased") : tr("portStillBusy");
   }
   await updateConfig();
   showToast(
-    released ? "隧道已停止，端口已释放" : "隧道已停止，但端口仍被占用",
-    `${connection.alias || connection.host} / 本地端口 ${connection.localPort}`,
+    released ? tr("tunnelStoppedReleased") : tr("tunnelStoppedBusy"),
+    `${connection.alias || connection.host} / ${tr("localPortDetail", connection.localPort)}`,
     released ? "success" : "error",
     released ? 3600 : 6200,
   );
@@ -1616,7 +1913,7 @@ async function saveProfiles(showNotice = true) {
   state.selectedProfileName = current.name;
   renderProfileLists();
   log("保存 profiles.json", JSON.stringify(redactedProfile(current), null, 2));
-  if (showNotice) showToast("配置已保存", current.name, "success", 2600);
+  if (showNotice) showToast(tr("configSaved"), current.name, "success", 2600);
   return current;
 }
 
@@ -1624,14 +1921,14 @@ async function exportSelectedKey() {
   const keys = selectedKeyObjects().filter(isUserKey);
   if (!keys.length) {
     log("没有需要导出的用户密钥");
-    showToast("没有可导出的用户密钥", "请选择左侧用户密钥后再导出到程序目录。", "error", 4200);
+    showToast(tr("noUserKeysToExport"), tr("selectUserKeysToExport"), "error", 4200);
     return;
   }
-  showToast("正在导出密钥", `${keys.length} 个用户密钥 -> ssh_keyfiles_export`, "info", 3200);
+  showToast(tr("exportingKeys"), tr("exportKeysDetail", keys.length), "info", 3200);
   log("导出密钥到程序目录", keys.map((key) => key.private_path).join("\n"));
   const exported = await invoke("export_key_files", { privatePaths: keys.map((key) => key.private_path) });
   log("导出完成", `${exported.length} 个密钥`);
-  showToast("导出完成", `${exported.length} 个密钥已复制到程序目录。`, "success", 3600);
+  showToast(tr("exportDone"), tr("exportDoneDetail", exported.length), "success", 3600);
   await refreshKeys();
 }
 
@@ -1639,19 +1936,19 @@ async function importSelectedKey() {
   const keys = selectedKeyObjects().filter((key) => !isUserKey(key));
   if (!keys.length) {
     log("没有需要导入的程序目录密钥");
-    showToast("没有可导入的程序目录密钥", "请选择右侧程序目录密钥。", "error", 4200);
+    showToast(tr("noPortableKeysToImport"), tr("selectPortableKeysToImport"), "error", 4200);
     return;
   }
   if (!$("allowImport").checked) {
     log("导入被关闭", "请先打开“允许导入到 ~/.ssh”开关。");
-    showToast("导入被安全开关拦截", "请先勾选“允许导入到 ~/.ssh”，再执行导入。", "error", 5200);
+    showToast(tr("importBlocked"), tr("importBlockedDetail"), "error", 5200);
     return;
   }
-  showToast("正在导入密钥", `${keys.length} 个程序目录密钥 -> ~/.ssh`, "info", 3200);
+  showToast(tr("importingKeys"), tr("importKeysDetail", keys.length), "info", 3200);
   log("导入密钥到 ~/.ssh", keys.map((key) => key.private_path).join("\n"));
   const imported = await invoke("import_key_files", { privatePaths: keys.map((key) => key.private_path) });
   log("导入完成", `${imported.length} 个密钥`);
-  showToast("导入完成", `${imported.length} 个密钥已复制到用户 ~/.ssh。`, "success", 3600);
+  showToast(tr("importDone"), tr("importDoneDetail", imported.length), "success", 3600);
   await refreshKeys();
 }
 
@@ -1659,39 +1956,39 @@ async function exportPublicBundle() {
   const publicPaths = selectedKeyObjects().map((key) => key.public_path).filter(Boolean);
   if (!publicPaths.length) {
     log("没有可导出的公钥");
-    showToast("没有可导出的公钥", "请选择带 .pub 的密钥。bundle 只包含公钥内容。", "error", 4600);
+    showToast(tr("noPublicKeys"), tr("selectPublicKeys"), "error", 4600);
     return;
   }
-  showToast("正在导出公钥 bundle", `${publicPaths.length} 个公钥将合并为 ssh_public_keys_bundle.pub`, "info", 3600);
+  showToast(tr("exportingPublicBundle"), tr("publicBundleDetail", publicPaths.length), "info", 3600);
   log("导出公钥 bundle", `${publicPaths.length} 个公钥`);
   const path = await invoke("export_public_bundle", { publicPaths });
   log("公钥 bundle 已生成", path);
-  showToast("公钥 bundle 已生成", path, "success", 5200);
+  showToast(tr("publicBundleDone"), path, "success", 5200);
 }
 
 async function deleteSelectedKeys() {
   const keys = selectedKeyObjects();
   if (!keys.length) {
     log("没有可删除的密钥");
-    showToast("没有可删除的密钥", "请先勾选要删除的密钥。", "error", 4200);
+    showToast(tr("noKeysToDelete"), tr("selectKeysToDelete"), "error", 4200);
     return;
   }
 
   const names = keys.map((key) => keyOptionLabel(key)).join("、");
   const confirmed = await confirmAction(
-    "删除选定密钥",
-    `确认删除 ${keys.length} 个密钥？会同时删除对应的 .pub 文件。\n${names}`,
-    "删除",
+    tr("deleteSelectedKeys"),
+    tr("deleteKeysMessage", keys.length, names),
+    tr("delete"),
   );
   if (!confirmed) return;
 
-  showToast("正在删除密钥", `${keys.length} 个选中密钥`, "info", 3200);
+  showToast(tr("deletingKeys"), tr("deletingKeysDetail", keys.length), "info", 3200);
   log("删除选定密钥", keys.map((key) => key.private_path).join("\n"));
   const deleted = await invoke("delete_key_files", { privatePaths: keys.map((key) => key.private_path) });
   state.selectedKeys.clear();
   state.selectedKey = null;
   log("密钥删除完成", deleted.join("\n"));
-  showToast("密钥删除完成", `${keys.length} 个密钥已删除。`, "success", 3600);
+  showToast(tr("keysDeleted"), tr("keysDeletedDetail", keys.length), "success", 3600);
   await refreshKeys();
 }
 
@@ -1713,7 +2010,7 @@ async function installPublicKey() {
     });
     setInstallStatus(result.success ? "成功" : "失败");
     log(result.success ? "公钥安装成功" : "公钥安装失败", result.message);
-    showToast(result.success ? "静默安装完成" : "静默安装失败", result.message || target, result.success ? "success" : "error", 5600);
+    showToast(result.success ? tr("silentInstallDone") : tr("silentInstallFailed"), result.message || target, result.success ? "success" : "error", 5600);
   } finally {
     updateInstallActionState();
   }
@@ -1734,7 +2031,7 @@ async function installPublicKeyInTerminal() {
     });
     setInstallStatus(result.success ? "成功" : "失败");
     log(result.success ? "公钥安装成功" : "公钥安装失败", result.message);
-    showToast(result.success ? "公钥安装完成" : "公钥安装失败", result.message.split("\n")[0], result.success ? "success" : "error", 5600);
+    showToast(result.success ? tr("publicInstallDone") : tr("installFailed"), result.message.split("\n")[0], result.success ? "success" : "error", 5600);
     return;
   }
   log("打开终端安装", `${installTarget()}:${$("installPort").value} <= ${publicKeyPath}`);
@@ -1746,7 +2043,7 @@ async function installPublicKeyInTerminal() {
   });
   setInstallStatus("已打开终端");
   log("交互式安装脚本", scriptPath);
-  showToast("终端安装已打开", installTarget(), "info", 6200);
+  showToast(tr("terminalInstallOpened"), installTarget(), "info", 6200);
 }
 
 async function generateInstallKey() {
@@ -1760,7 +2057,7 @@ async function generateInstallKey() {
     updateInstallActionState();
     setInstallStatus("密钥已存在");
     log("安装密钥已存在，已选中", existing.private_path);
-    showToast("密钥已存在，已选中", existing.name, "success");
+    showToast(tr("keyExistsSelected"), existing.name, "success");
     return;
   }
 
@@ -1776,7 +2073,7 @@ async function generateInstallKey() {
   state.selectedKey = keyByPath(key.private_path) || state.selectedKey;
   setInstallStatus("已生成");
   log("安装密钥已生成", key.private_path);
-  showToast("密钥已生成", key.name, "success");
+  showToast(tr("keyGenerated"), key.name, "success");
 }
 
 async function verifyInstalledKey() {
@@ -1795,11 +2092,11 @@ async function verifyInstalledKey() {
   setInstallStatus(result.success ? "验证通过" : "验证失败");
   log(result.success ? "密钥登录验证通过" : "密钥登录验证失败", result.message);
   const reason = result.message.split("\n")[0];
-  showToast(result.success ? "密钥登录可用" : "密钥登录验证失败", reason, result.success ? "success" : "error", 5600);
+  showToast(result.success ? tr("keyLoginReady") : tr("keyVerifyFailed"), reason, result.success ? "success" : "error", 5600);
 }
 
 async function writeConfig() {
-  showToast("正在写入 ~/.ssh/config", "会写入当前用户的 OpenSSH 配置文件。", "info", 3600);
+  showToast(tr("writingSshConfig"), tr("writeSshConfigDetail"), "info", 3600);
   log("写入 ~/.ssh/config", $("sshConfig").textContent);
   const path = await invoke("write_vscode_config", {
     alias: $("hostAlias").value,
@@ -1809,19 +2106,19 @@ async function writeConfig() {
     identityFile: selectedIdentityFile(),
   });
   log("~/.ssh/config 已写入", path);
-  showToast("~/.ssh/config 已写入", path, "success", 5200);
+  showToast(tr("sshConfigWritten"), path, "success", 5200);
 }
 
 async function pingHost() {
   log("Ping 服务器", $("serverHost").value);
   const result = await invoke("ping_host", { host: $("serverHost").value, timeoutSec: 2 });
   log(result.success ? "Ping 成功" : "Ping 失败或超时", result.message.trim());
-  showToast(result.success ? "Ping 成功" : "Ping 失败或超时", result.message.trim().split("\n")[0], result.success ? "success" : "error", result.success ? 3200 : 5200);
+  showToast(result.success ? tr("pingOk") : tr("pingFailed"), result.message.trim().split("\n")[0], result.success ? "success" : "error", result.success ? 3200 : 5200);
 }
 
 async function sshTest() {
   log("后台 SSH 测试服务器", `${$("serverUser").value}@${$("serverHost").value}:${$("serverPort").value}`);
-  showToast("正在测试 SSH", `${$("serverUser").value}@${$("serverHost").value}:${$("serverPort").value}`, "info");
+  showToast(tr("testingSsh"), `${$("serverUser").value}@${$("serverHost").value}:${$("serverPort").value}`, "info");
   const result = await invoke("test_ssh_server", {
     user: $("serverUser").value,
     host: $("serverHost").value,
@@ -1830,7 +2127,7 @@ async function sshTest() {
     identityPassphrase: selectedIdentityPassphrase(),
   });
   log(result.success ? "SSH 服务可达" : "SSH 检测失败", result.message);
-  showToast(result.success ? "SSH 服务可达" : "SSH 检测失败", result.message.split("\n")[0], result.success ? "success" : "error", result.success ? 4200 : 6200);
+  showToast(result.success ? tr("sshReachable") : tr("sshCheckFailed"), result.message.split("\n")[0], result.success ? "success" : "error", result.success ? 4200 : 6200);
 }
 
 async function ensureFirewall() {
@@ -1838,17 +2135,17 @@ async function ensureFirewall() {
   const admin = await invoke("is_admin");
   if (!admin) {
     log("当前不是管理员模式", "将请求 UAC 提权来放行 SSH-Tunnel-Range。");
-    showToast("正在请求管理员权限", "确认 UAC 后会隐藏执行窗口", "info", 5200);
+    showToast(tr("requestingAdmin"), tr("uacDetail"), "info", 5200);
     const result = await invoke("request_firewall_admin");
     log(result.success ? "防火墙提权命令已完成" : "防火墙提权命令失败", result.message);
-    showToast(result.success ? "防火墙放行已请求" : "防火墙放行失败", result.message, result.success ? "success" : "error", 5600);
+    showToast(result.success ? tr("firewallRequested") : tr("firewallFailed"), result.message, result.success ? "success" : "error", 5600);
     return;
   }
 
   log("放行防火墙", "New/Set-NetFirewallRule SSH-Tunnel-Range 2222-2299");
   const result = await invoke("ensure_firewall_rule");
   log(result.success ? "防火墙规则已确认" : "防火墙规则设置失败", result.message);
-  showToast(result.success ? "防火墙已放行" : "防火墙放行失败", result.message, result.success ? "success" : "error", 5600);
+  showToast(result.success ? tr("firewallAllowed") : tr("firewallFailed"), result.message, result.success ? "success" : "error", 5600);
 }
 
 for (const tab of document.querySelectorAll(".tab")) {
@@ -1941,16 +2238,14 @@ for (const id of ["languageSelect", "cursorSelect"]) {
     await saveSettings().catch((error) => log("保存设置失败", String(error)));
     applySettings();
     showToast(
-      lang() === "en" ? "Settings updated" : "设置已更新",
-      id === "languageSelect"
-        ? (lang() === "en" ? "Language saved" : "语言设置已保存")
-        : (lang() === "en" ? "Cursor style applied" : "鼠标样式已应用"),
+      tr("settingsUpdated"),
+      id === "languageSelect" ? tr("languageSaved") : tr("cursorApplied"),
       "success",
       2200,
     );
   });
 }
-$("newProfile").addEventListener("click", (event) => runButtonAction(event.currentTarget, lang() === "en" ? "Adding" : "新增中", async () => {
+$("newProfile").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyAdding"), async () => {
   const profile = {
     name: uniqueProfileName(),
     user: "",
@@ -1968,14 +2263,14 @@ $("newProfile").addEventListener("click", (event) => runButtonAction(event.curre
   fillEditor(profile);
   renderProfileLists();
   log("新增配置档案", profile.name);
-  showToast("已新增配置", profile.name, "success", 2400);
+  showToast(tr("profileAdded"), profile.name, "success", 2400);
 }));
-$("applyProfile").addEventListener("click", (event) => runButtonAction(event.currentTarget, lang() === "en" ? "Applying" : "应用中", async () => {
+$("applyProfile").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyApplying"), async () => {
   const profile = await saveProfiles(false);
   fillConnect(profile);
   setPage("connectPage");
   log("保存并应用配置到连接页", profile.name);
-  showToast("已保存并应用到连接", profile.name, "success", 2600);
+  showToast(tr("profileApplied"), profile.name, "success", 2600);
 }));
 $("connectProfile").addEventListener("change", () => {
   const profile = profileByName($("connectProfile").value);
@@ -1987,14 +2282,14 @@ $("connectProfile").addEventListener("change", () => {
   }
 });
 $("autoVmIp").addEventListener("change", () => refreshVmIps().then(updateConfig));
-$("saveProfiles").addEventListener("click", (event) => runButtonAction(event.currentTarget, lang() === "en" ? "Saving" : "保存中", () => saveProfiles()).catch((error) => {
+$("saveProfiles").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busySaving"), () => saveProfiles()).catch((error) => {
   log("保存失败", String(error));
-  showToast("保存配置失败", String(error), "error", 5200);
+  showToast(tr("profileSaveFailed"), String(error), "error", 5200);
 }));
-$("deleteProfile").addEventListener("click", (event) => runButtonAction(event.currentTarget, lang() === "en" ? "Deleting" : "删除中", async () => {
+$("deleteProfile").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyDeleting"), async () => {
   const name = state.selectedProfileName || $("profileName").value.trim();
   if (!name) return log("没有可删除的配置");
-  const confirmed = await confirmAction("删除配置档案", `确认删除配置“${name}”？这个操作会立即写入 profiles.json。`, "删除");
+  const confirmed = await confirmAction(tr("profileDeleteTitle"), tr("profileDeleteMessage", name), tr("delete"));
   if (!confirmed) return;
   state.profiles = state.profiles.filter((profile) => profile.name !== name);
   state.selectedProfileName = state.profiles[0]?.name || "";
@@ -2017,44 +2312,44 @@ $("deleteProfile").addEventListener("click", (event) => runButtonAction(event.cu
   }
   renderProfileLists();
   log("删除配置档案", name);
-  showToast("配置已删除", name, "success");
+  showToast(tr("profileDeleted"), name, "success");
 }));
-$("startTunnel").addEventListener("click", (event) => runButtonAction(event.currentTarget, lang() === "en" ? "Starting" : "启动中", () => startTunnel()).catch((error) => {
+$("startTunnel").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyStarting"), () => startTunnel()).catch((error) => {
   log("启动失败", String(error));
-  showToast("启动失败", String(error), "error", 5600);
+  showToast(tr("startStopped"), String(error), "error", 5600);
 }));
 $("openConnections").addEventListener("click", () => setPage("connectionsPage"));
-$("pingHost").addEventListener("click", (event) => runButtonAction(event.currentTarget, lang() === "en" ? "Pinging" : "Ping 中", () => pingHost()).catch((error) => {
+$("pingHost").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyPinging"), () => pingHost()).catch((error) => {
   log("Ping 失败", String(error));
-  showToast("Ping 失败", String(error), "error", 5200);
+  showToast(tr("pingFailed"), String(error), "error", 5200);
 }));
-$("sshTest").addEventListener("click", (event) => runButtonAction(event.currentTarget, lang() === "en" ? "Testing" : "测试中", () => sshTest()).catch((error) => {
+$("sshTest").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyTesting"), () => sshTest()).catch((error) => {
   log("SSH 测试失败", String(error));
-  showToast("SSH 测试失败", String(error), "error", 5600);
+  showToast(tr("sshCheckFailed"), String(error), "error", 5600);
 }));
-$("firewallRule").addEventListener("click", (event) => runButtonAction(event.currentTarget, "放行中", () => ensureFirewall()).catch((error) => {
+$("firewallRule").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyAllowing"), () => ensureFirewall()).catch((error) => {
   log("防火墙设置失败", String(error));
-  showToast("防火墙设置失败", String(error), "error", 5600);
+  showToast(tr("firewallFailed"), String(error), "error", 5600);
 }));
-$("refreshPort").addEventListener("click", (event) => runButtonAction(event.currentTarget, lang() === "en" ? "Checking" : "检测中", () => refreshPort(true).then(updateConfig)).catch((error) => {
+$("refreshPort").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyChecking"), () => refreshPort(true).then(updateConfig)).catch((error) => {
   log("端口检测失败", String(error));
-  showToast("端口检测失败", String(error), "error", 5200);
+  showToast(tr("refreshFailed"), String(error), "error", 5200);
 }));
-$("exportSelectedKey").addEventListener("click", (event) => runButtonAction(event.currentTarget, "导出中", () => exportSelectedKey()).catch((error) => {
+$("exportSelectedKey").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyExporting"), () => exportSelectedKey()).catch((error) => {
   log("导出失败", String(error));
-  showToast("导出失败", String(error), "error", 5200);
+  showToast(tr("exportFailed"), String(error), "error", 5200);
 }));
-$("importSelectedKey").addEventListener("click", (event) => runButtonAction(event.currentTarget, "导入中", () => importSelectedKey()).catch((error) => {
+$("importSelectedKey").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyImporting"), () => importSelectedKey()).catch((error) => {
   log("导入失败", String(error));
-  showToast("导入失败", String(error), "error", 5200);
+  showToast(tr("importFailed"), String(error), "error", 5200);
 }));
-$("exportPublicBundle").addEventListener("click", (event) => runButtonAction(event.currentTarget, "导出中", () => exportPublicBundle()).catch((error) => {
+$("exportPublicBundle").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyExporting"), () => exportPublicBundle()).catch((error) => {
   log("导出公钥失败", String(error));
-  showToast("导出公钥失败", String(error), "error", 5200);
+  showToast(tr("publicBundleFailed"), String(error), "error", 5200);
 }));
-$("deleteSelectedKeys").addEventListener("click", (event) => runButtonAction(event.currentTarget, "删除中", () => deleteSelectedKeys()).catch((error) => {
+$("deleteSelectedKeys").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyDeleting"), () => deleteSelectedKeys()).catch((error) => {
   log("删除密钥失败", String(error));
-  showToast("删除密钥失败", String(error), "error", 5600);
+  showToast(tr("deleteKeysFailed"), String(error), "error", 5600);
 }));
 $("selectAllKeys").addEventListener("change", (event) => {
   setKeyGroupSelection(state.keys, event.target.checked, "密钥");
@@ -2065,69 +2360,69 @@ $("selectAllUserKeys").addEventListener("change", (event) => {
 $("selectAllPortableKeys").addEventListener("change", (event) => {
   setKeyGroupSelection(state.keys.filter((key) => !isUserKey(key)), event.target.checked, "程序目录密钥");
 });
-$("openUserKeyDir").addEventListener("click", (event) => runButtonAction(event.currentTarget, "打开中", async () => {
+$("openUserKeyDir").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyOpening"), async () => {
   log("打开用户密钥目录", "~/.ssh");
-  showToast("正在打开用户密钥目录", "~/.ssh", "info", 2600);
+  showToast(tr("userKeyDirOpening"), "~/.ssh", "info", 2600);
   await invoke("open_path", { path: "~/.ssh" });
-  showToast("用户密钥目录已打开", "~/.ssh", "success", 2600);
+  showToast(tr("userKeyDirOpened"), "~/.ssh", "success", 2600);
 }).catch((error) => {
   log("打开用户密钥目录失败", String(error));
-  showToast("打开用户密钥目录失败", String(error), "error", 5200);
+  showToast(tr("openFailed"), String(error), "error", 5200);
 }));
-$("openPortableKeyDir").addEventListener("click", (event) => runButtonAction(event.currentTarget, "打开中", async () => {
+$("openPortableKeyDir").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyOpening"), async () => {
   log("打开程序相对目录密钥位置", "ssh_keyfiles_export");
-  showToast("正在打开程序相对目录", "ssh_keyfiles_export", "info", 2600);
+  showToast(tr("portableKeyDirOpening"), "ssh_keyfiles_export", "info", 2600);
   await invoke("open_path", { path: "ssh_keyfiles_export" });
-  showToast("程序相对目录已打开", "ssh_keyfiles_export", "success", 2600);
+  showToast(tr("portableKeyDirOpened"), "ssh_keyfiles_export", "success", 2600);
 }).catch((error) => {
   log("打开程序相对目录失败", String(error));
-  showToast("打开程序相对目录失败", String(error), "error", 5200);
+  showToast(tr("openFailed"), String(error), "error", 5200);
 }));
-$("syncInstallFields").addEventListener("click", (event) => runButtonAction(event.currentTarget, "填充中", async () => {
+$("syncInstallFields").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyFilling"), async () => {
   syncInstallFields(true);
   setInstallStatus("已自动填充");
   log("自动填充安装信息", installTarget());
-  showToast("安装信息已填充", installTarget(), "success", 2400);
+  showToast(tr("installFieldsFilled"), installTarget(), "success", 2400);
 }));
-$("installPublicKey").addEventListener("click", (event) => runButtonAction(event.currentTarget, "安装中", () => installPublicKey()).catch((error) => {
+$("installPublicKey").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyInstalling"), () => installPublicKey()).catch((error) => {
   setInstallStatus("失败");
   log("公钥安装失败", String(error));
 }));
-$("installPublicKeyTerminal").addEventListener("click", (event) => runButtonAction(event.currentTarget, "打开中", () => installPublicKeyInTerminal()).catch((error) => {
+$("installPublicKeyTerminal").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyOpening"), () => installPublicKeyInTerminal()).catch((error) => {
   setInstallStatus("失败");
   log("打开终端失败", String(error));
 }));
-$("generateInstallKey").addEventListener("click", (event) => runButtonAction(event.currentTarget, "生成中", () => generateInstallKey()).catch((error) => {
+$("generateInstallKey").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyGenerating"), () => generateInstallKey()).catch((error) => {
   setInstallStatus("失败");
   log("生成密钥失败", String(error));
-  showToast("生成密钥失败", String(error), "error", 5600);
+  showToast(tr("keyGenerateFailed"), String(error), "error", 5600);
 }));
-$("verifyInstalledKey").addEventListener("click", (event) => runButtonAction(event.currentTarget, "验证中", () => verifyInstalledKey()).catch((error) => {
+$("verifyInstalledKey").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyVerifying"), () => verifyInstalledKey()).catch((error) => {
   setInstallStatus("失败");
   log("验证密钥登录失败", String(error));
-  showToast("验证失败", String(error), "error", 5600);
+  showToast(tr("verifyFailed"), String(error), "error", 5600);
 }));
-$("writeConfig").addEventListener("click", (event) => runButtonAction(event.currentTarget, "写入中", () => writeConfig()).catch((error) => {
+$("writeConfig").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyWriting"), () => writeConfig()).catch((error) => {
   log("写入失败", String(error));
-  showToast("写入 ~/.ssh/config 失败", String(error), "error", 5200);
+  showToast(tr("writeSshConfigFailed"), String(error), "error", 5200);
 }));
-$("copyConfig").addEventListener("click", (event) => runButtonAction(event.currentTarget, "复制中", async () => {
+$("copyConfig").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyCopying"), async () => {
   await navigator.clipboard.writeText($("sshConfig").textContent);
   log("已复制 SSH 配置");
-  showToast("SSH 配置已复制", "可以直接粘贴使用。", "success", 3000);
+  showToast(tr("sshConfigCopied"), tr("pasteReady"), "success", 3000);
 }).catch((error) => {
   log("复制 SSH 配置失败", String(error));
-  showToast("复制失败", String(error), "error", 5200);
+  showToast(tr("copyFailed"), String(error), "error", 5200);
 }));
 $("clearLog").addEventListener("click", () => {
   $("log").textContent = "";
-  showToast("日志已清空", "", "success", 1800);
+  showToast(tr("logCleared"), "", "success", 1800);
 });
 $("contextCopy").addEventListener("click", async () => {
   const text = selectedText();
   if (text) {
     await navigator.clipboard.writeText(text);
-    showToast("已复制", `${text.length} 个字符`, "success", 1800);
+    showToast(tr("copied"), tr("charsCopied", text.length), "success", 1800);
   }
   hideContextMenu();
 });
@@ -2151,7 +2446,7 @@ document.addEventListener("scroll", hideContextMenu, true);
 $("connectionList").addEventListener("click", (event) => {
   const stopButton = event.target.closest("[data-stop-pid]");
   if (stopButton) {
-    runButtonAction(stopButton, "停止中", () => stopTunnel(Number(stopButton.dataset.stopPid))).catch((error) => log("停止失败", String(error)));
+    runButtonAction(stopButton, tr("busyStopping"), () => stopTunnel(Number(stopButton.dataset.stopPid))).catch((error) => log("停止失败", String(error)));
     return;
   }
 
@@ -2162,7 +2457,7 @@ $("clearClosedConnections").addEventListener("click", () => {
   const before = state.connections.length;
   state.connections = state.connections.filter((connection) => connection.status === "running" || connection.status === "starting");
   renderConnections();
-  showToast("已清除断开记录", `${before - state.connections.length} 条`, "success");
+  showToast(tr("closedRecordsCleared"), tr("recordsCount", before - state.connections.length), "success");
 });
 
 async function initializeApp() {

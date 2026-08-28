@@ -116,7 +116,7 @@
                   <label>
                     <span class="label-row">
                       密钥后缀
-                      <span class="info-dot" data-tooltip="可选。只参与生成的密钥文件名。&#10;例如填 1 会生成 id_ed25519_user_1，&#10;不影响密钥算法或强度。">!</span>
+                      <span id="keygenOffsetInfo" class="info-dot" data-tooltip="可选。只参与生成的密钥文件名。&#10;例如填 1 会生成 id_ed25519_user_1，&#10;不影响密钥算法或强度。">!</span>
                     </span>
                     <input id="keygenOffset" />
                   </label>
@@ -127,7 +127,7 @@
                   <label>
                     <span class="label-row">
                       私钥密码（可选）
-                      <span class="info-dot" data-tooltip="留空会生成免密码私钥，适合自动连接。&#10;填写后会保护私钥，但每次使用该密钥时可能需要输入这个密码。">!</span>
+                      <span id="keygenPassphraseInfo" class="info-dot" data-tooltip="留空会生成免密码私钥，适合自动连接。&#10;填写后会保护私钥，但每次使用该密钥时可能需要输入这个密码。">!</span>
                     </span>
                     <input id="keygenPassphrase" type="password" autocomplete="new-password" />
                   </label>
@@ -158,7 +158,7 @@
                   <label>
                     <span class="label-row">
                       服务器密码
-                      <span class="info-dot" data-tooltip="填写后会通过临时 askpass 脚本交给 ssh.exe，&#10;后台自动安装公钥，不需要手动输入。&#10;留空时仍会打开终端让你手动输入。">!</span>
+                      <span id="installPasswordInfo" class="info-dot" data-tooltip="填写后会通过临时 askpass 脚本交给 ssh.exe，&#10;后台自动安装公钥，不需要手动输入。&#10;留空时仍会打开终端让你手动输入。">!</span>
                     </span>
                     <input id="installPassword" type="password" autocomplete="off" />
                   </label>
@@ -179,6 +179,7 @@
                     <button id="installPublicKey" class="primary">静默安装公钥</button>
                     <span
                       class="info-dot"
+                      id="silentInstallInfo"
                       data-tooltip="必要条件：服务器已能用左侧密钥登录。&#10;工作方式：先用已有密钥登录服务器，&#10;再追加上方选择的公钥文件。&#10;第一次安装请使用终端安装。"
                     >!</span>
                   </div>
