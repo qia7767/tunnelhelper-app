@@ -14,6 +14,10 @@ const state = {
   profileDragMoved: false,
   profileDrag: null,
   isClosingApp: false,
+  currentPage: "keysPage",
+  connectionsUnreadCount: 0,
+  highlightedConnectionPid: null,
+  highlightTimer: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -545,6 +549,120 @@ const I18N = {
 
 const SAVED_PROFILE_KEY_PREFIX = "__saved_profile_key__:";
 
+const LOG_EN = {
+  "读取 app_settings.json 失败": "Failed to read app_settings.json",
+  "保存 app_settings.json 失败": "Failed to save app_settings.json",
+  "选择配置档案": "Selected profile",
+  "配置档案顺序已更新": "Profile order updated",
+  "保存配置顺序失败": "Failed to save profile order",
+  "读取 profiles.json": "Loaded profiles.json",
+  "选择密钥": "Selected key",
+  "取消选择密钥": "Deselected key",
+  "扫描密钥": "Scanned keys",
+  "检测虚拟机 IP": "Detected VM IP",
+  "检测本地端口": "Checked local port",
+  "密码模式说明": "Password mode note",
+  "启动前 SSH 测试": "Pre-start SSH test",
+  "启动前 SSH 测试通过": "Pre-start SSH test passed",
+  "启动前 SSH 测试失败": "Pre-start SSH test failed",
+  "启动前密码认证失败": "Pre-start password authentication failed",
+  "启动前密码认证测试": "Pre-start password authentication test",
+  "启动前密码认证通过": "Pre-start password authentication passed",
+  "刷新完成": "Refresh complete",
+  "刷新失败": "Refresh failed",
+  "隧道进程已退出": "Tunnel process exited",
+  "状态检查失败": "Status check failed",
+  "启动密码模式隧道": "Starting password-mode tunnel",
+  "密码模式隧道已后台启动": "Password-mode tunnel started in background",
+  "启动隧道": "Starting tunnel",
+  "隧道进程已启动": "Tunnel process started",
+  "当前没有已记录的隧道进程": "No recorded tunnel process found",
+  "停止隧道": "Stopping tunnel",
+  "隧道已停止，端口已释放": "Tunnel stopped, port released",
+  "隧道已停止，端口仍被占用": "Tunnel stopped, port still busy",
+  "关闭程序前停止连接": "Stopping connection before app exit",
+  "停止连接命令返回异常": "Stop connection command returned an error",
+  "窗口关闭失败": "Failed to close window",
+  "关闭程序前连接清理完成": "Connection cleanup before exit complete",
+  "关闭程序失败": "Failed to close app",
+  "保存 profiles.json": "Saved profiles.json",
+  "没有需要导出的用户密钥": "No user keys to export",
+  "导出密钥到程序目录": "Exported keys to app folder",
+  "导出完成": "Export complete",
+  "没有需要导入的程序目录密钥": "No app-folder keys to import",
+  "导入被关闭": "Import blocked",
+  "导入密钥到 ~/.ssh": "Imported keys to ~/.ssh",
+  "导入完成": "Import complete",
+  "没有可导出的公钥": "No public keys to export",
+  "导出公钥 bundle": "Exported public key bundle",
+  "公钥 bundle 已生成": "Public key bundle generated",
+  "没有可删除的密钥": "No keys to delete",
+  "删除选定密钥": "Deleted selected keys",
+  "密钥删除完成": "Key deletion complete",
+  "请选择公钥文件": "Please select a public key file",
+  "静默安装缺少登录密钥": "Silent install missing login key",
+  "静默写入 authorized_keys": "Silent write to authorized_keys",
+  "公钥安装成功": "Public key installation succeeded",
+  "公钥安装失败": "Public key installation failed",
+  "密码模式安装 authorized_keys": "Password-mode authorized_keys installation",
+  "打开终端安装": "Opened terminal install",
+  "交互式安装脚本": "Interactive install script",
+  "安装密钥已存在，已选中": "Install key already exists and was selected",
+  "生成安装密钥": "Generating install key",
+  "安装密钥已生成": "Install key generated",
+  "无法验证密钥登录": "Cannot verify key login",
+  "验证密钥登录": "Verifying key login",
+  "密钥登录验证通过": "Key login verification passed",
+  "密钥登录验证失败": "Key login verification failed",
+  "写入 ~/.ssh/config": "Writing ~/.ssh/config",
+  "~/.ssh/config 已写入": "~/.ssh/config written",
+  "Ping 服务器": "Pinging server",
+  "Ping 成功": "Ping succeeded",
+  "Ping 失败或超时": "Ping failed or timed out",
+  "后台 SSH 测试服务器": "Background SSH server test",
+  "SSH 服务可达": "SSH service reachable",
+  "SSH 检测失败": "SSH check failed",
+  "检查管理员模式": "Checking administrator mode",
+  "当前不是管理员模式": "Not running as administrator",
+  "防火墙提权命令已完成": "Firewall elevation command completed",
+  "防火墙提权命令失败": "Firewall elevation command failed",
+  "放行防火墙": "Allowing firewall rule",
+  "防火墙规则已确认": "Firewall rule confirmed",
+  "防火墙规则设置失败": "Firewall rule setup failed",
+  "窗口拖动失败": "Window drag failed",
+  "窗口最大化失败": "Window maximize failed",
+  "窗口最小化失败": "Window minimize failed",
+  "保存设置失败": "Failed to save settings",
+  "新增配置档案": "Added profile",
+  "保存并应用配置到连接页": "Saved and applied profile to Connection page",
+  "连接页应用档案": "Applied profile on Connection page",
+  "保存失败": "Save failed",
+  "没有可删除的配置": "No profile to delete",
+  "删除配置档案": "Deleted profile",
+  "启动失败": "Start failed",
+  "Ping 失败": "Ping failed",
+  "SSH 测试失败": "SSH test failed",
+  "防火墙设置失败": "Firewall setup failed",
+  "端口检测失败": "Port check failed",
+  "导出失败": "Export failed",
+  "导入失败": "Import failed",
+  "导出公钥失败": "Public key export failed",
+  "删除密钥失败": "Delete keys failed",
+  "打开用户密钥目录": "Opening user key folder",
+  "打开用户密钥目录失败": "Failed to open user key folder",
+  "打开程序相对目录密钥位置": "Opening app key folder",
+  "打开程序相对目录失败": "Failed to open app key folder",
+  "自动填充安装信息": "Auto-filled install fields",
+  "打开终端失败": "Failed to open terminal",
+  "生成密钥失败": "Failed to generate key",
+  "验证密钥登录失败": "Failed to verify key login",
+  "写入失败": "Write failed",
+  "已复制 SSH 配置": "SSH config copied",
+  "复制 SSH 配置失败": "Failed to copy SSH config",
+  "停止失败": "Stop failed",
+  "初始化失败": "Initialization failed",
+};
+
 function lang() {
   return state.appSettings?.language === "en" ? "en" : "zh";
 }
@@ -585,10 +703,44 @@ function setTooltip(selectorOrId, key) {
   if (element) element.dataset.tooltip = tr(key);
 }
 
+function translateLogText(text) {
+  if (lang() !== "en" || text == null) return text || "";
+  let translated = LOG_EN[text] || String(text);
+  translated = translated
+    .replace(/^全选用户密钥$/, "Selected all user keys")
+    .replace(/^全选程序目录密钥$/, "Selected all app-folder keys")
+    .replace(/^全选密钥$/, "Selected all keys")
+    .replace(/^取消全选用户密钥$/, "Deselected all user keys")
+    .replace(/^取消全选程序目录密钥$/, "Deselected all app-folder keys")
+    .replace(/^取消全选密钥$/, "Deselected all keys")
+    .replace(/(\d+) 个连接/g, "$1 connection(s)")
+    .replace(/(\d+) 个密钥/g, "$1 key(s)")
+    .replace(/(\d+) 个公钥/g, "$1 public key(s)")
+    .replace(/(\d+) 个/g, "$1 item(s)")
+    .replace(/(\d+) 条/g, "$1 record(s)")
+    .replace(/本地端口/g, "local port")
+    .replace(/密钥:/g, "key:")
+    .replace(/使用已有密钥/g, "existing login key")
+    .replace(/验证私钥/g, "private key")
+    .replace(/参考公钥/g, "public key")
+    .replace(/目标/g, "target")
+    .replace(/未选择/g, "not selected")
+    .replace(/未指定/g, "not specified")
+    .replace(/请先打开“允许导入到 ~\/.ssh”开关。/g, "Enable the \"Allow import to ~/.ssh\" switch first.")
+    .replace(/请选择一把已经安装在服务器上的私钥。/g, "Select a private key that is already installed on the server.")
+    .replace(/请选择验证使用密钥。/g, "Select a key for login verification.")
+    .replace(/密码模式仅作为测试\/备用功能；默认建议使用密钥认证。/g, "Password mode is intended as a test/fallback path; key authentication is recommended by default.")
+    .replace(/未填写服务器密码。/g, "Server password is empty.")
+    .replace(/将请求 UAC 提权来放行 SSH-Tunnel-Range。/g, "A UAC elevation request will allow SSH-Tunnel-Range.");
+  return translated;
+}
+
 function log(message, detail = "") {
   const now = new Date().toLocaleTimeString();
-  const suffix = detail ? `\n    ${detail}` : "";
-  $("log").textContent += `[${now}] ${message}${suffix}\n`;
+  const translatedMessage = translateLogText(message);
+  const translatedDetail = translateLogText(detail);
+  const suffix = translatedDetail ? `\n    ${translatedDetail}` : "";
+  $("log").textContent += `[${now}] ${translatedMessage}${suffix}\n`;
   $("log").scrollTop = $("log").scrollHeight;
 }
 
@@ -866,6 +1018,7 @@ function applyTranslations() {
 
   renderSelectionState();
   updateTunnelSummary();
+  updateConnectionsTabBadge();
   renderKeySelects();
   renderKeyLists();
   renderProfileLists();
@@ -1123,9 +1276,39 @@ function updateSelectedProfileDraft() {
   renderProfileLists();
 }
 
+function updateConnectionsTabBadge() {
+  const tab = document.querySelector('[data-page="connectionsPage"]');
+  if (!tab) return;
+  tab.textContent = state.connectionsUnreadCount > 0
+    ? `${tr("connections")} · ${state.connectionsUnreadCount}`
+    : tr("connections");
+  tab.classList.toggle("has-badge", state.connectionsUnreadCount > 0);
+}
+
+function markConnectionArrived(connection) {
+  state.highlightedConnectionPid = connection.pid;
+  if (state.currentPage !== "connectionsPage") {
+    state.connectionsUnreadCount += 1;
+  }
+  updateConnectionsTabBadge();
+  renderConnections();
+  clearTimeout(state.highlightTimer);
+  state.highlightTimer = setTimeout(() => {
+    if (state.highlightedConnectionPid === connection.pid) {
+      state.highlightedConnectionPid = null;
+      renderConnections();
+    }
+  }, 1600);
+}
+
 function setPage(pageId) {
+  state.currentPage = pageId;
   document.querySelectorAll(".page").forEach((page) => page.classList.toggle("active", page.id === pageId));
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.page === pageId));
+  if (pageId === "connectionsPage") {
+    state.connectionsUnreadCount = 0;
+    updateConnectionsTabBadge();
+  }
   if (pageId === "installPage") {
     showToast(tr("keyInstall"), `${tr("keygenTitle")}\n${tr("installTitle")}\n${tr("verifyTitle")}`, "info", 5200);
     state.installGuideShown = true;
@@ -1161,6 +1344,7 @@ function renderConnections() {
   for (const connection of state.connections) {
     const item = document.createElement("div");
     item.className = `connection-card ${connection.status}`;
+    item.classList.toggle("just-connected", connection.pid === state.highlightedConnectionPid);
     item.innerHTML = `
       <div class="connection-head">
         <div class="item-title">${connection.alias || connection.user}@${connection.host}</div>
@@ -1705,6 +1889,7 @@ function startStatusTimer() {
               `${connection.alias || connection.host} / PID ${connection.pid}`,
               "success",
             );
+            markConnectionArrived(connection);
           }
         } else {
           connection.status = "exited";

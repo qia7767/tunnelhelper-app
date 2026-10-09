@@ -169,7 +169,7 @@ fn user_ssh_dir() -> Result<PathBuf, String> {
 }
 
 fn portable_key_dir() -> Result<PathBuf, String> {
-    let base = workspace_base_dir()?;
+    let base = app_base_dir()?;
     Ok(base.join("ssh_keyfiles_export"))
 }
 
@@ -184,24 +184,11 @@ fn app_settings_path() -> Result<PathBuf, String> {
 fn candidate_key_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
 
-    if let Ok(base) = app_base_dir() {
-        dirs.push(base.join("ssh_keyfiles_export"));
-        if let Some(parent) = base.parent() {
-            dirs.push(parent.join("ssh_keyfiles_export"));
-        }
+    if let Ok(dir) = portable_key_dir() {
+        dirs.push(dir);
     }
-
-    if let Ok(base) = workspace_base_dir() {
-        dirs.push(base.join("ssh_keyfiles_export"));
-        if let Some(parent) = base.parent() {
-            dirs.push(parent.join("ssh_keyfiles_export"));
-        }
-    }
-
-    if let Some(home) = env::var_os("USERPROFILE").map(PathBuf::from) {
-        dirs.push(home.join("Downloads").join("ssh_keyfiles_export"));
-        dirs.push(home.join("Desktop").join("ssh_keyfiles_export"));
-        dirs.push(home.join(".ssh"));
+    if let Ok(dir) = user_ssh_dir() {
+        dirs.push(dir);
     }
 
     dirs
@@ -351,33 +338,73 @@ fn copy_key_pair(private_path: &Path, target_dir: &Path) -> Result<KeyBundle, St
         copy_file_if_needed(&public, &dst_public)?;
     }
 
-    fix_private_key_acl(&dst_private);
+    fix_private_key_acl(&dst_private)?;
     Ok(key_bundle_from_private(&dst_private, target_dir))
 }
 
-fn fix_private_key_acl(path: &Path) {
+fn windows_account_name() -> Result<String, String> {
+    let user = env::var("USERNAME").map_err(|_| "无法读取当前 Windows 用户名".to_string())?;
+    Ok(match env::var("USERDOMAIN") {
+        Ok(domain) if !domain.trim().is_empty() => format!(r"{domain}\{user}"),
+        _ => user,
+    })
+}
+
+fn run_icacls(path: &Path, args: &[&str]) -> Result<(), String> {
     let mut command = Command::new("icacls");
-    let _ = hide_console(
+    let output = hide_console(
         command
             .arg(path)
-            .args(["/inheritance:r"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null()),
+            .args(args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped()),
     )
-    .status();
+    .output()
+    .map_err(|e| format!("无法运行 icacls: {e}"))?;
 
-    if let Some(user) = env::var_os("USERNAME").and_then(|v| v.into_string().ok()) {
-        let grant = format!("{user}:R");
-        let mut command = Command::new("icacls");
-        let _ = hide_console(
-            command
-                .arg(path)
-                .args(["/grant:r", &grant])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null()),
-        )
-        .status();
+    if output.status.success() {
+        return Ok(());
     }
+
+    let detail = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    Err(format!(
+        "无法收紧私钥权限: {}\n{}",
+        normalize_path(path),
+        detail.trim()
+    ))
+}
+
+fn fix_private_key_acl(path: &Path) -> Result<(), String> {
+    if !path.is_file() {
+        return Err(format!("私钥文件不存在: {}", normalize_path(path)));
+    }
+
+    run_icacls(path, &["/inheritance:r"])?;
+    let grant = format!("{}:(M)", windows_account_name()?);
+    run_icacls(path, &["/grant:r", &grant])
+}
+
+fn prepare_portable_identity_file(identity: &str) -> Result<(), String> {
+    let path = PathBuf::from(identity);
+    let is_portable = path
+        .parent()
+        .and_then(Path::file_name)
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case("ssh_keyfiles_export"));
+
+    if is_portable {
+        fix_private_key_acl(&path).map_err(|error| {
+            format!(
+                "程序目录私钥的 Windows 权限过宽，自动修复失败。请确认当前用户可以修改该文件。\n{error}"
+            )
+        })?;
+    }
+
+    Ok(())
 }
 
 fn sanitize_key_name(value: &str) -> String {
@@ -458,7 +485,7 @@ fn generate_ssh_key(
         });
     }
 
-    fix_private_key_acl(&private_path);
+    fix_private_key_acl(&private_path)?;
     Ok(key_bundle_from_private(&private_path, &target_dir))
 }
 
@@ -663,7 +690,7 @@ fn delete_key_files(private_paths: Vec<String>) -> Result<Vec<String>, String> {
 
 #[tauri::command]
 fn export_public_bundle(public_paths: Vec<String>) -> Result<String, String> {
-    let target = workspace_base_dir()?.join("ssh_public_keys_bundle.pub");
+    let target = app_base_dir()?.join("ssh_public_keys_bundle.pub");
     let mut lines = Vec::new();
 
     for raw in public_paths {
@@ -716,9 +743,13 @@ fn install_public_to_linux_blocking(
         "PreferredAuthentications=publickey".to_string(),
     ];
 
-    if let Some(identity) = identity_file.filter(|value| !value.trim().is_empty()) {
+    if let Some(identity) = identity_file
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        prepare_portable_identity_file(identity)?;
         args.push("-i".to_string());
-        args.push(identity);
+        args.push(identity.to_string());
         args.push("-o".to_string());
         args.push("IdentitiesOnly=yes".to_string());
     }
@@ -931,7 +962,11 @@ fn launch_public_install_terminal(
     script.push_str("$keyText = ($keyLines -join \"`n\") + \"`n\"\n");
     script.push_str(&format!("$sshArgs = @('-p', '{}')\n", port));
 
-    if let Some(identity) = identity_file.filter(|value| !value.trim().is_empty()) {
+    if let Some(identity) = identity_file
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        prepare_portable_identity_file(identity)?;
         script.push_str(&format!(
             "$sshArgs += @('-i', '{}', '-o', 'IdentitiesOnly=yes')\n",
             escape_single_quoted_powershell(&identity)
@@ -1036,7 +1071,11 @@ fn launch_ssh_test_terminal(
     script.push_str("$sshArgs += @('-o', 'ConnectTimeout=8')\n");
     script.push_str("$sshArgs += @('-o', 'ServerAliveInterval=30')\n");
 
-    if let Some(identity) = identity_file.filter(|value| !value.trim().is_empty()) {
+    if let Some(identity) = identity_file
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        prepare_portable_identity_file(identity)?;
         script.push_str(&format!(
             "$sshArgs += @('-i', '{}', '-o', 'IdentitiesOnly=yes')\n",
             escape_single_quoted_powershell(&identity)
@@ -1111,9 +1150,13 @@ fn test_ssh_server_blocking(
         args.push("NumberOfPasswordPrompts=0".to_string());
     }
 
-    if let Some(identity) = identity_file.filter(|value| !value.trim().is_empty()) {
+    if let Some(identity) = identity_file
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        prepare_portable_identity_file(identity)?;
         args.push("-i".to_string());
-        args.push(identity);
+        args.push(identity.to_string());
         args.push("-o".to_string());
         args.push("IdentitiesOnly=yes".to_string());
     }
@@ -1424,6 +1467,7 @@ fn start_tunnel(
         .as_ref()
         .filter(|v| !v.trim().is_empty())
     {
+        prepare_portable_identity_file(identity)?;
         args.push("-i".to_string());
         args.push(identity.to_string());
         args.push("-o".to_string());
@@ -1759,7 +1803,12 @@ fn open_path(path: String) -> Result<(), String> {
             .ok_or_else(|| "USERPROFILE is not set".to_string())?
             .join(rest)
     } else {
-        PathBuf::from(path)
+        let path = PathBuf::from(path);
+        if path.is_absolute() {
+            path
+        } else {
+            app_base_dir()?.join(path)
+        }
     };
     let mut command = Command::new("explorer.exe");
     hide_console(command.arg(resolved))

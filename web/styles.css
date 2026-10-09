@@ -303,6 +303,11 @@ p {
   box-shadow: 0 1px 2px rgba(29, 39, 51, 0.08);
 }
 
+.tab.has-badge {
+  color: #0f62d9;
+  font-weight: 700;
+}
+
 .page {
   display: none;
 }
@@ -786,6 +791,29 @@ body.profile-dragging * {
 .connection-card.failed {
   border-color: #d04545;
   box-shadow: inset 3px 0 0 #d04545;
+}
+
+.connection-card.just-connected {
+  animation: connection-arrived 1600ms ease-out;
+}
+
+@keyframes connection-arrived {
+  0% {
+    background: #eef6ff;
+    border-color: #1f6feb;
+    box-shadow: inset 3px 0 0 #1f6feb, 0 0 0 4px rgba(31, 111, 235, 0.18);
+    transform: translateY(-1px);
+  }
+
+  60% {
+    background: #f7fbff;
+    box-shadow: inset 3px 0 0 #1f6feb, 0 0 0 2px rgba(31, 111, 235, 0.1);
+  }
+
+  100% {
+    background: #fff;
+    transform: translateY(0);
+  }
 }
 
 .connection-head {
