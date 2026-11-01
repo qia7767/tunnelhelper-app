@@ -2,9 +2,12 @@
 node_modules/
 src-tauri/target/
 dist/
+linux-server/target/
+.dev-data/
 
 # Local portable build artifacts
 tunnel-helper.exe
+tunnel-helper-linux-*
 ioa-tunnel-helper.exe
 backups/
 downloads/

@@ -1,4 +1,5 @@
-const invoke = window.__TAURI__.core.invoke;
+const invoke = window.TunnelBridge.invoke;
+const isLinuxServer = !window.TunnelBridge.isTauri;
 
 const state = {
   keys: [],
@@ -38,6 +39,8 @@ const DEFAULT_APP_SETTINGS = {
 
 const I18N = {
   zh: {
+    help: "帮助",
+    helpLoadFailed: "无法加载帮助文档。",
     refresh: "刷新检测",
     refreshing: "刷新中",
     settings: "设置",
@@ -87,6 +90,12 @@ const I18N = {
     sshAlias: "SSH 别名",
     serverPort: "服务器端口",
     localStartPort: "本地起始端口",
+    reverseTunnel: "反向隧道",
+    yes: "是",
+    no: "否",
+    remotePortOnA: "中转服务器监听端口",
+    reverseTargetUser: "目标主机登录用户",
+    reverseTargetPort: "目标主机 SSH 端口",
     authMode: "认证方式",
     keyAuth: "使用密钥",
     passwordAuth: "使用密码",
@@ -126,6 +135,7 @@ const I18N = {
     viewConfig: "查看配置",
     stop: "停止",
     localToRemote: (local, remote) => `本地 ${local} -> 远端 127.0.0.1:${remote}`,
+    reverseToLocal: (remote, target) => `中转服务器 127.0.0.1:${remote} -> 目标主机 127.0.0.1:${target}`,
     noVmIp: "未检测到虚拟机 IP",
     portAvailable: "端口可用",
     usingPort: (port) => `已改用 ${port}`,
@@ -141,6 +151,8 @@ const I18N = {
     configuredKeyPassphrase: "已配置私钥密码",
     unspecifiedKey: "未指定密钥",
     running: "运行中",
+    reverseRunning: "反向隧道运行中",
+    waitingReversePort: "等待中转服务器监听端口建立",
     starting: "启动中",
     passwordTunnelRunning: "密码隧道运行中",
     passwordTunnelStarting: "后台认证中",
@@ -183,12 +195,14 @@ const I18N = {
     confirmingTunnel: (pid) => `PID ${pid}，正在确认连接状态`,
     passwordTunnelConnected: "密码隧道已连接",
     tunnelConnected: "隧道已连接",
+    reverseTunnelConnected: "反向隧道已连接",
     tunnelExited: "隧道已退出",
     portReleased: "端口已释放",
     portStillBusy: "端口仍被占用",
     tunnelStoppedReleased: "隧道已停止，端口已释放",
     tunnelStoppedBusy: "隧道已停止，但端口仍被占用",
     localPortDetail: (port) => `本地端口 ${port}`,
+    remotePortDetail: (port) => `A 远端端口 ${port}`,
     configSaved: "配置已保存",
     profileAdded: "已新增配置",
     profileApplied: "已保存并应用到连接",
@@ -292,6 +306,8 @@ const I18N = {
     writeSshConfigFailed: "写入 ~/.ssh/config 失败",
   },
   en: {
+    help: "Help",
+    helpLoadFailed: "Unable to load the help document.",
     refresh: "Refresh",
     refreshing: "Refreshing",
     settings: "Settings",
@@ -341,6 +357,12 @@ const I18N = {
     sshAlias: "SSH Alias",
     serverPort: "Server Port",
     localStartPort: "Local Start Port",
+    reverseTunnel: "Reverse Tunnel",
+    yes: "Yes",
+    no: "No",
+    remotePortOnA: "Relay Server Listening Port",
+    reverseTargetUser: "Target Host Login User",
+    reverseTargetPort: "Target Host SSH Port",
     authMode: "Authentication",
     keyAuth: "Use Key",
     passwordAuth: "Use Password",
@@ -380,6 +402,7 @@ const I18N = {
     viewConfig: "View Config",
     stop: "Stop",
     localToRemote: (local, remote) => `Local ${local} -> Remote 127.0.0.1:${remote}`,
+    reverseToLocal: (remote, target) => `Relay 127.0.0.1:${remote} -> Target 127.0.0.1:${target}`,
     noVmIp: "No VM IP detected",
     portAvailable: "Port available",
     usingPort: (port) => `Using ${port}`,
@@ -395,6 +418,8 @@ const I18N = {
     configuredKeyPassphrase: "Key passphrase saved",
     unspecifiedKey: "No key selected",
     running: "Running",
+    reverseRunning: "Reverse tunnel running",
+    waitingReversePort: "Waiting for the relay server listening port",
     starting: "Starting",
     passwordTunnelRunning: "Password tunnel running",
     passwordTunnelStarting: "Authenticating",
@@ -437,12 +462,14 @@ const I18N = {
     confirmingTunnel: (pid) => `PID ${pid}, checking connection status`,
     passwordTunnelConnected: "Password tunnel connected",
     tunnelConnected: "Tunnel connected",
+    reverseTunnelConnected: "Reverse tunnel connected",
     tunnelExited: "Tunnel exited",
     portReleased: "Port released",
     portStillBusy: "Port still busy",
     tunnelStoppedReleased: "Tunnel stopped, port released",
     tunnelStoppedBusy: "Tunnel stopped, but port is still busy",
     localPortDetail: (port) => `Local port ${port}`,
+    remotePortDetail: (port) => `Remote port on A ${port}`,
     configSaved: "Profile saved",
     profileAdded: "Profile added",
     profileApplied: "Saved and applied to Connection",
@@ -887,6 +914,9 @@ function applySettings() {
 function applyTranslations() {
   setButton("refreshAll", "refresh");
   $("settingsButton").setAttribute("aria-label", tr("settings"));
+  $("helpButton").setAttribute("aria-label", tr("help"));
+  $("helpButton").title = tr("help");
+  $("helpTitle").textContent = tr("help");
   setText('[data-page="keysPage"]', "keyManagement");
   setText('[data-page="installPage"]', "keyInstall");
   setText('[data-page="profilesPage"]', "profileManagement");
@@ -960,7 +990,10 @@ function applyTranslations() {
   setLabelText("profileUser", "serverUser");
   setLabelText("profileHost", "serverHost");
   setLabelText("profileServerPort", "serverPort");
-  setLabelText("profileLocalPort", "localStartPort");
+  setLabelText("profileLocalPort", $("profileReverseTunnel").value === "true" ? "remotePortOnA" : "localStartPort");
+  setLabelText("profileReverseTunnel", "reverseTunnel");
+  setLabelText("profileReverseTargetUser", "reverseTargetUser");
+  setLabelText("profileReverseTargetPort", "reverseTargetPort");
   setLabelText("profileAuthMode", "authMode");
   setLabelText("profileKeyName", "optionalKey");
   setLabelText("profileKeyPassphrase", "privatePassphraseOptional");
@@ -973,7 +1006,10 @@ function applyTranslations() {
   setLabelText("serverUser", "serverUser");
   setLabelText("serverHost", "serverHost");
   setLabelText("serverPort", "serverPort");
-  setLabelText("localPort", "localPort");
+  setLabelText("reverseTunnel", "reverseTunnel");
+  setLabelText("localPort", $("reverseTunnel").value === "true" ? "remotePortOnA" : "localPort");
+  setLabelText("reverseTargetUser", "reverseTargetUser");
+  setLabelText("reverseTargetPort", "reverseTargetPort");
   setLabelText("vmIp", "vmIp");
   setLabelText("autoVmIp", "autoVmIp");
   setLabelText("connectKey", "optionalKey");
@@ -1013,10 +1049,16 @@ function applyTranslations() {
   setSelectOptionText("profileAuthMode", "password", "passwordAuth");
   setSelectOptionText("authMode", "key", "keyAuth");
   setSelectOptionText("authMode", "password", "passwordAuth");
+  setSelectOptionText("profileReverseTunnel", "false", "no");
+  setSelectOptionText("profileReverseTunnel", "true", "yes");
+  setSelectOptionText("reverseTunnel", "false", "no");
+  setSelectOptionText("reverseTunnel", "true", "yes");
   setSelectOptionText("autoVmIp", "on", "on");
   setSelectOptionText("autoVmIp", "off", "off");
 
   renderSelectionState();
+  updateProfileTunnelMode();
+  updateTunnelMode();
   updateTunnelSummary();
   updateConnectionsTabBadge();
   renderKeySelects();
@@ -1224,6 +1266,9 @@ function activeProfileFromEditor() {
     serverPassword: typedPassword || existingProfile?.serverPassword || null,
     authMode,
     hostAlias: $("profileAlias").value.trim() || $("profileName").value.trim(),
+    reverseTunnel: isLinuxServer && $("profileReverseTunnel").value === "true",
+    reverseTargetUser: $("profileReverseTargetUser").value.trim(),
+    reverseTargetPort: Number($("profileReverseTargetPort").value || 22),
   };
 }
 
@@ -1235,12 +1280,16 @@ function fillEditor(profile) {
   $("profileServerPort").value = profile.serverPort || 22;
   $("profileLocalPort").value = profile.baseLocalPort || 2222;
   $("profileAuthMode").value = profile.authMode || "key";
+  $("profileReverseTunnel").value = isLinuxServer && profile.reverseTunnel ? "true" : "false";
+  $("profileReverseTargetUser").value = profile.reverseTargetUser || "";
+  $("profileReverseTargetPort").value = profile.reverseTargetPort || 22;
   const key = keyForProfile(profile);
   const savedOptionValue = ensureSavedProfileKeyOption($("profileKeyName"), profile);
   $("profileKeyName").value = key?.private_path || savedOptionValue || "";
   $("profileKeyPassphrase").value = profile.identityPassphrase || "";
   $("profilePassword").value = profile.serverPassword || "";
   updateProfileAuthMode();
+  updateProfileTunnelMode();
   updateProfilePreview();
 }
 
@@ -1251,12 +1300,16 @@ function fillConnect(profile) {
   $("localPort").value = profile.baseLocalPort || 2222;
   $("hostAlias").value = profile.hostAlias || profile.name || "";
   $("authMode").value = profile.authMode || "key";
+  $("reverseTunnel").value = isLinuxServer && profile.reverseTunnel ? "true" : "false";
+  $("reverseTargetUser").value = profile.reverseTargetUser || "";
+  $("reverseTargetPort").value = profile.reverseTargetPort || 22;
   $("serverPassword").value = profile.serverPassword || "";
   $("connectKeyPassphrase").value = profile.identityPassphrase || "";
 
   const key = keyForProfile(profile);
   $("connectKey").value = key?.private_path || "";
   updateAuthMode();
+  updateTunnelMode();
   updateConfig();
 }
 
@@ -1351,7 +1404,9 @@ function renderConnections() {
         <span class="status-pill">${connection.statusText}</span>
       </div>
       <div class="item-meta">PID ${connection.pid} / ${connection.user}@${connection.host}:${connection.serverPort}</div>
-      <div class="item-meta">${tr("localToRemote", connection.localPort, connection.serverPort)}</div>
+      <div class="item-meta">${connection.reverseTunnel
+        ? tr("reverseToLocal", connection.localPort, connection.reverseTargetPort || 22)
+        : tr("localToRemote", connection.localPort, connection.serverPort)}</div>
       <div class="item-meta">${connection.command}</div>
       <div class="connection-actions">
         <button data-page-jump="connectPage">${tr("viewConfig")}</button>
@@ -1454,8 +1509,12 @@ function renderProfileLists() {
     const authDetail = profile.authMode === "password"
       ? profile.serverPassword ? `password / ${tr("configuredPassword")}` : "password"
       : `key / ${keyForProfile(profile) ? keyOptionLabel(keyForProfile(profile)) : profile.identityFileName || tr("unspecifiedKey")}${profile.identityPassphrase ? ` / ${tr("configuredKeyPassphrase")}` : ""}`;
+    const directionDetail = profile.reverseTunnel
+      ? tr("reverseToLocal", profile.baseLocalPort || 22022, profile.reverseTargetPort || 22)
+      : tr("localToRemote", profile.baseLocalPort || 2222, profile.serverPort || 22);
     const item = document.createElement("div");
     item.className = "profile-item";
+    item.classList.toggle("profile-reverse", Boolean(profile.reverseTunnel));
     item.role = "button";
     item.tabIndex = 0;
     item.dataset.profileName = profile.name;
@@ -1463,9 +1522,11 @@ function renderProfileLists() {
     item.innerHTML = `
       <div class="profile-item-head">
         <div class="item-title">${profile.name}</div>
+        ${profile.reverseTunnel ? `<span class="profile-direction">${tr("reverseTunnel")}</span>` : ""}
         <span class="drag-handle" aria-label="拖动调整顺序">⋮⋮</span>
       </div>
       <div class="item-meta">${profile.user}@${profile.host}:${profile.serverPort}</div>
+      <div class="item-meta">${directionDetail}</div>
       <div class="item-meta">${authDetail}</div>
     `;
     item.addEventListener("click", () => {
@@ -1739,6 +1800,10 @@ async function refreshVmIps() {
 }
 
 async function refreshPort(showNotice = false) {
+  if (isLinuxServer && $("reverseTunnel").value === "true") {
+    $("portStatus").textContent = tr("waitingReversePort");
+    return;
+  }
   const start = Number($("localPort").value || 2222);
   log("检测本地端口", `find_free_port ${start}`);
   const port = await invoke("find_free_port", { startPort: start });
@@ -1764,7 +1829,41 @@ function updateProfileAuthMode() {
   $("profilePasswordWrap").classList.remove("hidden");
 }
 
+function updateProfileTunnelMode() {
+  const reverse = isLinuxServer && $("profileReverseTunnel").value === "true";
+  $("profileReverseTargetUserWrap").classList.toggle("hidden", !reverse);
+  $("profileReverseTargetPortWrap").classList.toggle("hidden", !reverse);
+  setLabelText("profileLocalPort", reverse ? "remotePortOnA" : "localStartPort");
+}
+
+function updateTunnelMode() {
+  const reverse = isLinuxServer && $("reverseTunnel").value === "true";
+  $("reverseTargetUserWrap").classList.toggle("hidden", !reverse);
+  $("reverseTargetPortWrap").classList.toggle("hidden", !reverse);
+  $("vmIpWrap").classList.toggle("hidden", reverse);
+  $("autoVmIpWrap").classList.toggle("hidden", reverse);
+  $("firewallRule").classList.toggle("hidden", reverse);
+  $("refreshPort").disabled = reverse;
+  $("writeConfig").disabled = reverse;
+  setLabelText("localPort", reverse ? "remotePortOnA" : "localPort");
+  if (reverse) {
+    $("portStatus").textContent = tr("waitingReversePort");
+  }
+}
+
 async function updateConfig() {
+  if (isLinuxServer && $("reverseTunnel").value === "true") {
+    const config = await invoke("generate_reverse_proxy_config", {
+      alias: $("hostAlias").value,
+      jumpHost: $("serverHost").value,
+      jumpPort: Number($("serverPort").value),
+      jumpUser: $("serverUser").value,
+      remotePort: Number($("localPort").value),
+      targetUser: $("reverseTargetUser").value,
+    });
+    $("sshConfig").textContent = config;
+    return;
+  }
   const config = await invoke("generate_vscode_config", {
     alias: $("hostAlias").value,
     vmIp: $("vmIp").value,
@@ -1875,7 +1974,11 @@ function startStatusTimer() {
         const status = await invoke("check_tunnel_status", { pid: connection.pid });
         if (status.running) {
           if (connection.status === "starting") {
-            if (connection.authMode === "password") {
+            if (connection.reverseTunnel && !status.connected) {
+              connection.statusText = tr("waitingReversePort");
+              continue;
+            }
+            if (connection.authMode === "password" && !connection.reverseTunnel) {
               const portOpen = await invoke("is_local_port_open", { port: connection.localPort });
               if (!portOpen) {
                 connection.statusText = tr("waitingPassword");
@@ -1883,9 +1986,13 @@ function startStatusTimer() {
               }
             }
             connection.status = "running";
-            connection.statusText = connection.authMode === "password" ? tr("passwordTunnelRunning") : tr("running");
+            connection.statusText = connection.reverseTunnel
+              ? tr("reverseRunning")
+              : connection.authMode === "password" ? tr("passwordTunnelRunning") : tr("running");
             showToast(
-              connection.authMode === "password" ? tr("passwordTunnelConnected") : tr("tunnelConnected"),
+              connection.reverseTunnel
+                ? tr("reverseTunnelConnected")
+                : connection.authMode === "password" ? tr("passwordTunnelConnected") : tr("tunnelConnected"),
               `${connection.alias || connection.host} / PID ${connection.pid}`,
               "success",
             );
@@ -1893,8 +2000,12 @@ function startStatusTimer() {
           }
         } else {
           connection.status = "exited";
-          const released = await invoke("is_local_port_available", { port: connection.localPort });
-          connection.statusText = `${status.exit_code == null ? tr("tunnelExited") : `${tr("tunnelExited")} ${status.exit_code}`}，${released ? tr("portReleased") : tr("portStillBusy")}`;
+          const released = connection.reverseTunnel
+            ? true
+            : await invoke("is_local_port_available", { port: connection.localPort });
+          connection.statusText = connection.reverseTunnel
+            ? status.exit_code == null ? tr("tunnelExited") : `${tr("tunnelExited")} ${status.exit_code}`
+            : `${status.exit_code == null ? tr("tunnelExited") : `${tr("tunnelExited")} ${status.exit_code}`}，${released ? tr("portReleased") : tr("portStillBusy")}`;
           log("隧道进程已退出", `PID ${connection.pid} / exit=${status.exit_code ?? "unknown"}`);
           showToast(tr("tunnelExited"), `${connection.alias || connection.host} / exit=${status.exit_code ?? "unknown"}`, "error", 5200);
         }
@@ -1920,6 +2031,8 @@ async function startTunnel() {
       password,
       reconnect: $("reconnect").checked,
       reconnect_delay: Number($("reconnectDelay").value || 5),
+      reverse_tunnel: isLinuxServer && $("reverseTunnel").value === "true",
+      reverse_target_port: Number($("reverseTargetPort").value || 22),
     };
   $("tunnelState").textContent = lang() === "en" ? "Testing password" : "测试密码";
     if (!(await testPasswordBeforeTunnel(request))) return;
@@ -1935,9 +2048,12 @@ async function startTunnel() {
       localPort: request.local_port,
       identityFile: null,
       authMode: "password",
+      reverseTunnel: request.reverse_tunnel,
+      reverseTargetPort: request.reverse_target_port,
+      reverseTargetUser: $("reverseTargetUser").value.trim(),
       command: result.command,
       status: "starting",
-      statusText: tr("passwordTunnelStarting"),
+      statusText: request.reverse_tunnel ? tr("waitingReversePort") : tr("passwordTunnelStarting"),
       startedAt: new Date().toISOString(),
     };
     state.connections.unshift(connection);
@@ -1957,6 +2073,8 @@ async function startTunnel() {
     identity_passphrase: selectedIdentityPassphrase(),
     reconnect: $("reconnect").checked,
     reconnect_delay: Number($("reconnectDelay").value || 5),
+    reverse_tunnel: isLinuxServer && $("reverseTunnel").value === "true",
+    reverse_target_port: Number($("reverseTargetPort").value || 22),
   };
   $("tunnelState").textContent = lang() === "en" ? "Testing SSH" : "测试 SSH";
   if (!(await testKeyBeforeTunnel(request))) return;
@@ -1973,9 +2091,12 @@ async function startTunnel() {
     localPort: request.local_port,
     identityFile: request.identity_file,
     authMode: "key",
+    reverseTunnel: request.reverse_tunnel,
+    reverseTargetPort: request.reverse_target_port,
+    reverseTargetUser: $("reverseTargetUser").value.trim(),
     command: result.command,
     status: "starting",
-    statusText: tr("starting"),
+    statusText: request.reverse_tunnel ? tr("waitingReversePort") : tr("starting"),
     startedAt: new Date().toISOString(),
   };
   state.connections.unshift(connection);
@@ -2000,21 +2121,21 @@ async function stopTunnel(pid) {
   if (!connection) return log("当前没有已记录的隧道进程", `PID ${pid}`);
   log("停止隧道", `taskkill /PID ${pid} /T /F\n本地端口: ${connection.localPort}`);
   await invoke("stop_tunnel", { pid });
-  const released = await waitForLocalPortReleased(connection.localPort);
+  const released = connection.reverseTunnel ? true : await waitForLocalPortReleased(connection.localPort);
   connection.status = "exited";
   connection.statusText = released ? tr("tunnelStoppedReleased") : tr("tunnelStoppedBusy");
   renderConnections();
-  if (Number($("localPort").value) === Number(connection.localPort)) {
+  if (!connection.reverseTunnel && Number($("localPort").value) === Number(connection.localPort)) {
     $("portStatus").textContent = released ? tr("portReleased") : tr("portStillBusy");
   }
   await updateConfig();
   showToast(
     released ? tr("tunnelStoppedReleased") : tr("tunnelStoppedBusy"),
-    `${connection.alias || connection.host} / ${tr("localPortDetail", connection.localPort)}`,
+    `${connection.alias || connection.host} / ${tr(connection.reverseTunnel ? "remotePortDetail" : "localPortDetail", connection.localPort)}`,
     released ? "success" : "error",
     released ? 3600 : 6200,
   );
-  log(released ? "隧道已停止，端口已释放" : "隧道已停止，端口仍被占用", `PID ${pid} / local:${connection.localPort}`);
+  log(released ? "隧道已停止，端口已释放" : "隧道已停止，端口仍被占用", `PID ${pid} / ${connection.reverseTunnel ? "remote" : "local"}:${connection.localPort}`);
 }
 
 function connectionName(connection) {
@@ -2039,7 +2160,7 @@ async function stopConnectionBeforeExit(connection) {
     log("停止连接命令返回异常", `PID ${connection.pid}: ${String(error)}`);
   }
 
-  const released = await waitForLocalPortReleased(connection.localPort);
+  const released = connection.reverseTunnel ? true : await waitForLocalPortReleased(connection.localPort);
   connection.status = released ? "exited" : "failed";
   connection.statusText = released ? "已停止，端口已释放" : "已停止，端口仍被占用";
   renderConnections();
@@ -2337,25 +2458,28 @@ for (const tab of document.querySelectorAll(".tab")) {
   tab.addEventListener("click", () => setPage(tab.dataset.page));
 }
 
-for (const id of ["profileName", "profileAlias", "profileUser", "profileHost", "profileServerPort", "profileLocalPort", "profileAuthMode", "profileKeyName", "profileKeyPassphrase", "profilePassword"]) {
+for (const id of ["profileName", "profileAlias", "profileUser", "profileHost", "profileServerPort", "profileLocalPort", "profileReverseTunnel", "profileReverseTargetUser", "profileReverseTargetPort", "profileAuthMode", "profileKeyName", "profileKeyPassphrase", "profilePassword"]) {
   $(id).addEventListener("input", () => {
     updateProfilePreview();
     updateSelectedProfileDraft();
   });
   $(id).addEventListener("change", () => {
     updateProfileAuthMode();
+    updateProfileTunnelMode();
     updateProfilePreview();
     updateSelectedProfileDraft();
   });
 }
 
-for (const id of ["serverUser", "serverHost", "serverPort", "localPort", "vmIp", "hostAlias", "connectKey", "connectKeyPassphrase", "authMode", "serverPassword"]) {
+for (const id of ["serverUser", "serverHost", "serverPort", "localPort", "reverseTunnel", "reverseTargetUser", "reverseTargetPort", "vmIp", "hostAlias", "connectKey", "connectKeyPassphrase", "authMode", "serverPassword"]) {
   $(id).addEventListener("input", () => {
     updateAuthMode();
+    updateTunnelMode();
     updateConfig();
   });
   $(id).addEventListener("change", () => {
     updateAuthMode();
+    updateTunnelMode();
     updateConfig();
   });
 }
@@ -2412,6 +2536,42 @@ $("windowClose").addEventListener("click", () => {
 $("settingsButton").addEventListener("click", () => {
   $("settingsModal").classList.remove("hidden");
 });
+async function showHelp() {
+  const content = $("helpContent");
+  $("helpModal").classList.remove("hidden");
+  content.textContent = "";
+  try {
+    const response = await fetch(`./help/linux-service.${lang() === "en" ? "en" : "zh"}.md`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const markdown = await response.text();
+    let code = null;
+    for (const line of markdown.split(/\r?\n/)) {
+      if (line.startsWith("```")) {
+        if (code) {
+          content.appendChild(code);
+          code = null;
+        } else {
+          code = document.createElement("pre");
+        }
+      } else if (code) {
+        code.textContent += `${line}\n`;
+      } else if (line.trim()) {
+        const heading = /^#{1,2}\s+(.+)$/.exec(line);
+        const element = document.createElement(heading ? "h2" : "p");
+        element.textContent = heading ? heading[1] : line;
+        content.appendChild(element);
+      }
+    }
+    if (code) content.appendChild(code);
+  } catch (error) {
+    content.textContent = `${tr("helpLoadFailed")} ${error.message}`;
+  }
+}
+$("helpButton").addEventListener("click", showHelp);
+$("closeHelp").addEventListener("click", () => $("helpModal").classList.add("hidden"));
+$("helpModal").addEventListener("click", (event) => {
+  if (event.target === $("helpModal")) $("helpModal").classList.add("hidden");
+});
 $("closeSettings").addEventListener("click", () => {
   $("settingsModal").classList.add("hidden");
 });
@@ -2442,6 +2602,9 @@ $("newProfile").addEventListener("click", (event) => runButtonAction(event.curre
     identityPassphrase: "",
     serverPassword: "",
     hostAlias: "tunnel-host",
+    reverseTunnel: false,
+    reverseTargetUser: "",
+    reverseTargetPort: 22,
   };
   state.profiles.push(profile);
   state.selectedProfileName = profile.name;
@@ -2493,6 +2656,9 @@ $("deleteProfile").addEventListener("click", (event) => runButtonAction(event.cu
       identityPassphrase: "",
       serverPassword: "",
       hostAlias: "tunnel-host",
+      reverseTunnel: false,
+      reverseTargetUser: "",
+      reverseTargetPort: 22,
     });
   }
   renderProfileLists();

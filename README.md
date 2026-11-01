@@ -4,7 +4,7 @@
   <img src="src-tauri/icons/icon.png" alt="Tunnel Helper icon" width="160">
 </p>
 
-Tunnel Helper is a portable Windows desktop app for managing SSH tunnels, SSH keys, connection profiles, and OpenSSH config snippets from a visual interface.
+Tunnel Helper provides a portable Windows desktop app and an experimental headless Linux web service for managing SSH tunnels, SSH keys, connection profiles, and OpenSSH config snippets.
 
 它的目标是把零散的 SSH 命令、密钥文件和连接配置收进一个清晰的可视化流程里，降低重复操作和配置出错的概率。
 
@@ -60,6 +60,7 @@ Tunnel Helper 不适合这些场景：
 - 支持密钥认证和密码认证。
 - 支持带私钥密码的密钥连接。
 - 启动、停止和查看多个后台 SSH 隧道。
+- Linux 无界面版本支持由动态地址服务器 B 主动连接固定地址服务器 A 的反向 SSH 隧道，并生成个人电脑使用的 `ProxyJump` 配置。
 - 检测 SSH 服务连通性、本地端口占用和防火墙放行。
 - 写入或复制 OpenSSH `~/.ssh/config` 配置。
 - 生成 SSH 密钥，并辅助安装公钥到 Linux 服务器。
@@ -163,6 +164,28 @@ npm run build
 ```text
 tunnel-helper.exe
 ```
+
+### Linux 无界面版本
+
+Linux 服务端源码位于 `linux-server/`，与 Windows Tauri 后端独立编译，共用 `web/` 前端。它面向没有桌面环境的服务器：运行一个便携二进制，然后通过浏览器访问管理界面。
+
+```bash
+cd linux-server
+sh build-portable.sh
+mkdir portable
+tar -xzf dist/tunnel-helper-linux-x86_64.tar.gz -C portable
+./portable/tunnel-helper
+```
+
+默认只监听 `127.0.0.1:6789`，Access Token 关闭，适合本机开发测试。服务端默认把配置和密钥保存在 Linux 二进制同级的 `data/` 中，不读取 Windows 便携版的配置目录。
+
+需要从局域网访问时必须启用 Token；程序会拒绝在无认证状态下监听非回环地址：
+
+```bash
+./tunnel-helper --listen 0.0.0.0 --port 6789 --auth token
+```
+
+启动时会在终端显示生成的 Access Token。也可以通过 `--access-token` 或 `TUNNEL_HELPER_ACCESS_TOKEN` 指定。更完整的开发与部署说明见 [linux-server/README.md](linux-server/README.md)。
 
 ## 离线开发说明
 

@@ -23,6 +23,7 @@
         <div class="brand-row">
           <h1>Tunnel Helper</h1>
           <button id="settingsButton" class="icon-button" aria-label="设置">⚙</button>
+          <button id="helpButton" class="icon-button" aria-label="帮助" title="帮助">?</button>
         </div>
         <div class="inline-actions">
           <button id="refreshAll" class="primary">刷新检测</button>
@@ -247,9 +248,24 @@
                 服务器端口
                 <input id="profileServerPort" type="number" min="1" max="65535" />
               </label>
-              <label>
+              <label id="profileTunnelPortWrap">
                 本地起始端口
                 <input id="profileLocalPort" type="number" min="1" max="65535" />
+              </label>
+              <label class="linux-only">
+                反向隧道
+                <select id="profileReverseTunnel">
+                  <option value="false">否</option>
+                  <option value="true">是</option>
+                </select>
+              </label>
+              <label id="profileReverseTargetUserWrap" class="linux-only hidden">
+                目标主机登录用户
+                <input id="profileReverseTargetUser" />
+              </label>
+              <label id="profileReverseTargetPortWrap" class="linux-only hidden">
+                目标主机 SSH 端口
+                <input id="profileReverseTargetPort" type="number" min="1" max="65535" value="22" />
               </label>
               <label>
                 认证方式
@@ -295,6 +311,13 @@
                   <option value="password">使用密码</option>
                 </select>
               </label>
+              <label class="linux-only">
+                反向隧道
+                <select id="reverseTunnel">
+                  <option value="false">否</option>
+                  <option value="true">是</option>
+                </select>
+              </label>
               <label>
                 服务器用户
                 <input id="serverUser" />
@@ -307,15 +330,23 @@
                 服务器端口
                 <input id="serverPort" type="number" min="1" max="65535" value="22" />
               </label>
-              <label>
+              <label id="tunnelPortWrap">
                 本地端口
                 <input id="localPort" type="number" min="1" max="65535" value="2222" />
               </label>
-              <label>
+              <label id="reverseTargetUserWrap" class="linux-only hidden">
+                目标主机登录用户
+                <input id="reverseTargetUser" />
+              </label>
+              <label id="reverseTargetPortWrap" class="linux-only hidden">
+                目标主机 SSH 端口
+                <input id="reverseTargetPort" type="number" min="1" max="65535" value="22" />
+              </label>
+              <label id="vmIpWrap">
                 虚拟机 IP
                 <select id="vmIp"></select>
               </label>
-              <label>
+              <label id="autoVmIpWrap">
                 自动检测并更新 VM IP
                 <select id="autoVmIp">
                   <option value="on">开启</option>
@@ -442,6 +473,15 @@
           </div>
         </section>
       </div>
+      <div id="helpModal" class="modal hidden">
+        <section class="modal-panel help-panel" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+          <div class="panel-title">
+            <h2 id="helpTitle">帮助</h2>
+            <button id="closeHelp" class="icon-button" aria-label="关闭">×</button>
+          </div>
+          <div id="helpContent" class="help-content"></div>
+        </section>
+      </div>
       <div id="confirmModal" class="modal hidden">
         <section class="modal-panel confirm-panel">
           <div class="confirm-icon">!</div>
@@ -468,6 +508,7 @@
         <button id="contextCopy">复制</button>
       </div>
     </main>
+    <script src="./runtime.js"></script>
     <script src="./main.js"></script>
   </body>
 </html>

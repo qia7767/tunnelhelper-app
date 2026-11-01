@@ -228,6 +228,15 @@ select {
   padding: 22px;
 }
 
+html[data-runtime="browser"] .app-titlebar {
+  display: none;
+}
+
+html[data-runtime="browser"] .shell {
+  height: 100vh;
+  margin-top: 0;
+}
+
 .topbar,
 .app-layout {
   margin: 0 auto;
@@ -694,6 +703,25 @@ button.danger.loading::before {
   margin-bottom: 2px;
 }
 
+.profile-item.profile-reverse {
+  background: #f0faf7;
+  border-color: #a7d8cc;
+}
+
+.profile-item.profile-reverse.active {
+  border-color: #1f6feb;
+}
+
+.profile-direction {
+  background: #d8f2ea;
+  border-radius: 4px;
+  color: #12644f;
+  flex: 0 0 auto;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 2px 5px;
+}
+
 .profile-item-head {
   align-items: center;
   display: flex;
@@ -839,6 +867,10 @@ body.profile-dragging * {
 }
 
 .hidden {
+  display: none !important;
+}
+
+html[data-runtime="tauri"] .linux-only {
   display: none !important;
 }
 
@@ -1005,6 +1037,34 @@ pre {
   grid-template-columns: auto 1fr;
   max-width: 460px;
   padding: 20px;
+}
+
+.help-panel {
+  max-width: 720px;
+}
+
+.help-content {
+  color: #334155;
+  line-height: 1.6;
+  max-height: min(65vh, 650px);
+  overflow: auto;
+  padding-right: 8px;
+}
+
+.help-content h2 {
+  color: #172232;
+  font-size: 16px;
+  margin: 20px 0 6px;
+}
+
+.help-content p { margin: 8px 0; }
+.help-content pre {
+  background: #f1f5f9;
+  border: 1px solid #d7e0ea;
+  border-radius: 6px;
+  overflow-x: auto;
+  padding: 10px 12px;
+  white-space: pre;
 }
 
 .confirm-icon {
