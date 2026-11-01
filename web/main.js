@@ -40,6 +40,14 @@ const DEFAULT_APP_SETTINGS = {
 const I18N = {
   zh: {
     help: "帮助",
+    stopServer: "关闭服务",
+    stopServerTitle: "关闭 Tunnel Helper 服务？",
+    stopServerConfirm: "将停止此服务管理的所有隧道并释放端口，随后退出服务。确定继续吗？",
+    stoppingServer: "正在关闭服务",
+    stoppingServerDetail: "正在停止所有连接，请稍候。",
+    serverStopped: "服务已关闭",
+    serverStoppedDetail: "所有受管理的连接已停止。可以关闭此页面；重新启动程序后才能再次使用。",
+    stopServerFailed: "关闭服务失败",
     helpLoadFailed: "无法加载帮助文档。",
     refresh: "刷新检测",
     refreshing: "刷新中",
@@ -94,8 +102,8 @@ const I18N = {
     yes: "是",
     no: "否",
     remotePortOnA: "中转服务器监听端口",
-    reverseTargetUser: "目标主机登录用户",
-    reverseTargetPort: "目标主机 SSH 端口",
+    reverseTargetUser: "本机登录用户",
+    reverseTargetPort: "本机 SSH 端口",
     authMode: "认证方式",
     keyAuth: "使用密钥",
     passwordAuth: "使用密码",
@@ -135,7 +143,7 @@ const I18N = {
     viewConfig: "查看配置",
     stop: "停止",
     localToRemote: (local, remote) => `本地 ${local} -> 远端 127.0.0.1:${remote}`,
-    reverseToLocal: (remote, target) => `中转服务器 127.0.0.1:${remote} -> 目标主机 127.0.0.1:${target}`,
+    reverseToLocal: (host, remote, target) => `中转服务器 ${host}:${remote} → 本机 127.0.0.1:${target}`,
     noVmIp: "未检测到虚拟机 IP",
     portAvailable: "端口可用",
     usingPort: (port) => `已改用 ${port}`,
@@ -307,6 +315,14 @@ const I18N = {
   },
   en: {
     help: "Help",
+    stopServer: "Stop Service",
+    stopServerTitle: "Stop Tunnel Helper?",
+    stopServerConfirm: "This stops all tunnels managed by this service and releases their ports before exiting. Continue?",
+    stoppingServer: "Stopping service",
+    stoppingServerDetail: "Stopping all connections, please wait.",
+    serverStopped: "Service stopped",
+    serverStoppedDetail: "All managed connections have stopped. You can close this page; restart the program to use it again.",
+    stopServerFailed: "Could not stop the service",
     helpLoadFailed: "Unable to load the help document.",
     refresh: "Refresh",
     refreshing: "Refreshing",
@@ -361,8 +377,8 @@ const I18N = {
     yes: "Yes",
     no: "No",
     remotePortOnA: "Relay Server Listening Port",
-    reverseTargetUser: "Target Host Login User",
-    reverseTargetPort: "Target Host SSH Port",
+    reverseTargetUser: "Local Host Login User",
+    reverseTargetPort: "Local Host SSH Port",
     authMode: "Authentication",
     keyAuth: "Use Key",
     passwordAuth: "Use Password",
@@ -402,7 +418,7 @@ const I18N = {
     viewConfig: "View Config",
     stop: "Stop",
     localToRemote: (local, remote) => `Local ${local} -> Remote 127.0.0.1:${remote}`,
-    reverseToLocal: (remote, target) => `Relay 127.0.0.1:${remote} -> Target 127.0.0.1:${target}`,
+    reverseToLocal: (host, remote, target) => `Relay ${host}:${remote} → Local 127.0.0.1:${target}`,
     noVmIp: "No VM IP detected",
     portAvailable: "Port available",
     usingPort: (port) => `Using ${port}`,
@@ -913,6 +929,7 @@ function applySettings() {
 
 function applyTranslations() {
   setButton("refreshAll", "refresh");
+  setButton("stopServer", "stopServer");
   $("settingsButton").setAttribute("aria-label", tr("settings"));
   $("helpButton").setAttribute("aria-label", tr("help"));
   $("helpButton").title = tr("help");
@@ -938,7 +955,7 @@ function applyTranslations() {
   setTooltip("exportSelectedKey", "tooltipExportPortable");
   setTooltip("importSelectedKey", "tooltipImportSsh");
 
-  document.querySelectorAll("label.check").forEach((label) => {
+  document.querySelectorAll("#keysPage label.check").forEach((label) => {
     const input = label.querySelector("input");
     if (!input) return;
     const key = input.id === "allowImport" ? "allowImport" : "selectAll";
@@ -1018,6 +1035,7 @@ function applyTranslations() {
   setLabelText("hostAlias", "sshAlias");
   setButton("startTunnel", "start");
   setButton("openConnections", "connections");
+  setLabelText("reconnect", "autoReconnect");
   setLabelText("reconnectDelay", "reconnectDelay");
   setButton("pingHost", "pingServer");
   setButton("sshTest", "sshTestServer");
@@ -1405,7 +1423,7 @@ function renderConnections() {
       </div>
       <div class="item-meta">PID ${connection.pid} / ${connection.user}@${connection.host}:${connection.serverPort}</div>
       <div class="item-meta">${connection.reverseTunnel
-        ? tr("reverseToLocal", connection.localPort, connection.reverseTargetPort || 22)
+        ? tr("reverseToLocal", connection.host, connection.localPort, connection.reverseTargetPort || 22)
         : tr("localToRemote", connection.localPort, connection.serverPort)}</div>
       <div class="item-meta">${connection.command}</div>
       <div class="connection-actions">
@@ -1510,7 +1528,7 @@ function renderProfileLists() {
       ? profile.serverPassword ? `password / ${tr("configuredPassword")}` : "password"
       : `key / ${keyForProfile(profile) ? keyOptionLabel(keyForProfile(profile)) : profile.identityFileName || tr("unspecifiedKey")}${profile.identityPassphrase ? ` / ${tr("configuredKeyPassphrase")}` : ""}`;
     const directionDetail = profile.reverseTunnel
-      ? tr("reverseToLocal", profile.baseLocalPort || 22022, profile.reverseTargetPort || 22)
+      ? tr("reverseToLocal", profile.host, profile.baseLocalPort || 22022, profile.reverseTargetPort || 22)
       : tr("localToRemote", profile.baseLocalPort || 2222, profile.serverPort || 22);
     const item = document.createElement("div");
     item.className = "profile-item";
@@ -2536,10 +2554,31 @@ $("windowClose").addEventListener("click", () => {
 $("settingsButton").addEventListener("click", () => {
   $("settingsModal").classList.remove("hidden");
 });
+$("stopServer").addEventListener("click", async () => {
+  if (!(await confirmAction(tr("stopServerTitle"), tr("stopServerConfirm"), tr("stopServer")))) return;
+  $("stopServer").disabled = true;
+  $("shutdownTitle").textContent = tr("stoppingServer");
+  $("shutdownMessage").textContent = tr("stoppingServerDetail");
+  $("shutdownModal").classList.remove("hidden");
+  try {
+    await invoke("shutdown_server");
+    if (state.statusTimer) clearInterval(state.statusTimer);
+    $("shutdownTitle").textContent = tr("serverStopped");
+    $("shutdownMessage").textContent = tr("serverStoppedDetail");
+    $("shutdownModal").querySelector(".shutdown-spinner").hidden = true;
+  } catch (error) {
+    $("shutdownModal").classList.add("hidden");
+    $("stopServer").disabled = false;
+    showToast(tr("stopServerFailed"), String(error), "error", 6200);
+  }
+});
 async function showHelp() {
   const content = $("helpContent");
+  const navigation = $("helpNavigation");
   $("helpModal").classList.remove("hidden");
   content.textContent = "";
+  navigation.textContent = "";
+  navigation.setAttribute("aria-label", lang() === "en" ? "Help contents" : "帮助目录");
   try {
     const response = await fetch(`./help/linux-service.${lang() === "en" ? "en" : "zh"}.md`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -2560,6 +2599,13 @@ async function showHelp() {
         const element = document.createElement(heading ? "h2" : "p");
         element.textContent = heading ? heading[1] : line;
         content.appendChild(element);
+        if (heading && line.startsWith("## ")) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = heading[1];
+          button.addEventListener("click", () => element.scrollIntoView({ block: "start" }));
+          navigation.appendChild(button);
+        }
       }
     }
     if (code) content.appendChild(code);

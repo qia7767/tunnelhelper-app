@@ -21,6 +21,7 @@ pub struct ApiState {
     pub service: CommandService,
     pub auth_mode: AuthMode,
     pub access_token: Option<Arc<str>>,
+    pub shutdown: tokio::sync::mpsc::UnboundedSender<()>,
 }
 
 pub fn router(state: ApiState) -> Router {
@@ -52,6 +53,14 @@ async fn invoke(
     Json(args): Json<Value>,
 ) -> Result<Json<Value>, ApiError> {
     authorize(&state, &headers)?;
+    if command == "shutdown_server" {
+        state.service.stop_all().await;
+        state
+            .shutdown
+            .send(())
+            .map_err(|_| ApiError::internal("Server shutdown is already in progress"))?;
+        return Ok(Json(json!({ "stopped": true })));
+    }
     state
         .service
         .invoke(&command, args)

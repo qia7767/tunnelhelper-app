@@ -29,17 +29,32 @@ async fn run() -> Result<(), String> {
         .map_err(|error| format!("Cannot listen on {address}: {error}"))?;
 
     let access_token = config.access_token.clone().map(Arc::<str>::from);
+    let (shutdown_tx, mut shutdown_rx) = tokio::sync::mpsc::unbounded_channel();
     let app = api::router(ApiState {
         service: service.clone(),
         auth_mode: config.auth_mode,
         access_token,
+        shutdown: shutdown_tx,
     });
 
     println!("Tunnel Helper server is running");
     println!("Local UI: http://{}:{}", config.display_host(), config.port);
+    if config.listen.is_unspecified() {
+        if let Ok(interfaces) = if_addrs::get_if_addrs() {
+            for interface in interfaces {
+                if let std::net::IpAddr::V4(ip) = interface.ip() {
+                    if !ip.is_loopback() && !ip.is_link_local() {
+                        println!("Network UI: http://{ip}:{}", config.port);
+                    }
+                }
+            }
+        }
+    }
     println!("Data dir: {}", service.data_dir().display());
     match (&config.auth_mode, &config.access_token) {
-        (AuthMode::Disabled, _) => println!("Access Token: disabled (loopback testing only)"),
+        (AuthMode::Disabled, _) => {
+            println!("Access Token: disabled; anyone able to reach this service can control it.")
+        }
         (AuthMode::Token, Some(token)) => println!("Access Token: {token}"),
         _ => {}
     }
@@ -49,14 +64,18 @@ async fn run() -> Result<(), String> {
     let (tray_shutdown, _tray_handle) = tray::start(config.display_host(), config.port).await;
 
     axum::serve(listener, app)
-        .with_graceful_shutdown(async {
+        .with_graceful_shutdown(async move {
             #[cfg(target_os = "linux")]
             tokio::select! {
                 _ = shutdown_signal() => {},
                 _ = tray_shutdown => {},
+                _ = shutdown_rx.recv() => {},
             }
             #[cfg(not(target_os = "linux"))]
-            shutdown_signal().await;
+            tokio::select! {
+                _ = shutdown_signal() => {},
+                _ = shutdown_rx.recv() => {},
+            }
         })
         .await
         .map_err(|error| error.to_string())?;

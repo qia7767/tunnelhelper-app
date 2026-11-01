@@ -1115,11 +1115,25 @@ fn generate_reverse_proxy_config(input: GenerateReverseConfigArgs) -> String {
     } else {
         input.target_user.trim()
     };
+    let example_key_name = |user: &str| {
+        let name = sanitize_key_name(user.trim());
+        if name.is_empty() {
+            "user".to_string()
+        } else {
+            name
+        }
+    };
     [
         format!("Host {jump_alias}"),
         format!("    HostName {}", input.jump_host),
         format!("    Port {}", input.jump_port),
         format!("    User {}", input.jump_user),
+        "    # Set the relay server private key path on this computer:".to_string(),
+        format!(
+            "    # IdentityFile ~/.ssh/id_ed25519_{}",
+            example_key_name(&input.jump_user)
+        ),
+        "    # IdentitiesOnly yes".to_string(),
         "    ServerAliveInterval 30".to_string(),
         "    ServerAliveCountMax 3".to_string(),
         String::new(),
@@ -1127,6 +1141,12 @@ fn generate_reverse_proxy_config(input: GenerateReverseConfigArgs) -> String {
         "    HostName 127.0.0.1".to_string(),
         format!("    Port {}", input.remote_port),
         format!("    User {target_user}"),
+        "    # Set the target host private key path on this computer:".to_string(),
+        format!(
+            "    # IdentityFile ~/.ssh/id_ed25519_{}",
+            example_key_name(&input.target_user)
+        ),
+        "    # IdentitiesOnly yes".to_string(),
         format!("    ProxyJump {jump_alias}"),
         format!("    HostKeyAlias {}", input.alias),
         "    ServerAliveInterval 30".to_string(),
@@ -1355,5 +1375,7 @@ mod tests {
         assert!(config.contains("Port 22022"));
         assert!(config.contains("ProxyJump server-b-jump"));
         assert!(config.contains("User server-b-user"));
+        assert!(config.contains("User jump-user\n    # Set the relay server private key path on this computer:\n    # IdentityFile ~/.ssh/id_ed25519_jump-user\n    # IdentitiesOnly yes"));
+        assert!(config.contains("User server-b-user\n    # Set the target host private key path on this computer:\n    # IdentityFile ~/.ssh/id_ed25519_server-b-user\n    # IdentitiesOnly yes"));
     }
 }

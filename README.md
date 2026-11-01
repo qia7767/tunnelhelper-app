@@ -61,12 +61,14 @@ Tunnel Helper 不适合这些场景：
 - 支持带私钥密码的密钥连接。
 - 启动、停止和查看多个后台 SSH 隧道。
 - Linux 无界面版本支持由动态地址服务器 B 主动连接固定地址服务器 A 的反向 SSH 隧道，并生成个人电脑使用的 `ProxyJump` 配置。
-- 检测 SSH 服务连通性、本地端口占用和防火墙放行。
+- Linux 浏览器界面提供服务关闭按钮、可选桌面托盘以及中英文帮助与填写示例。
+- Linux 支持通过 `server_settings.json` 调整监听范围、端口和可选的持久 Token。
+- 检测 SSH 服务连通性和本地端口占用；Windows 版可辅助放行防火墙。
 - 写入或复制 OpenSSH `~/.ssh/config` 配置。
 - 生成 SSH 密钥，并辅助安装公钥到 Linux 服务器。
 - 支持中文和英文界面。
 
-## 便携目录
+## Windows 便携目录
 
 推荐把程序、密钥和配置放在同一个目录中，方便复制到虚拟机或其他 Windows 机器。
 
@@ -115,6 +117,7 @@ Tunnel Helper 可以生成 OpenSSH 配置片段，并写入用户目录下的：
 - `ssh_keyfiles_export/`：可能包含私钥。
 - `profiles.json`：可能包含服务器地址、用户名、密钥路径、密码字段。
 - `app_settings.json`：可能包含本地默认填空信息。
+- `server_settings.json`：Linux 服务设置，启用认证后可能包含访问 Token。
 - `backups/`、`downloads/`、`node_modules/`、`src-tauri/target/`：构建产物或缓存目录。
 
 仓库里只应该提供：
@@ -167,7 +170,18 @@ tunnel-helper.exe
 
 ### Linux 无界面版本
 
-Linux 服务端源码位于 `linux-server/`，与 Windows Tauri 后端独立编译，共用 `web/` 前端。它面向没有桌面环境的服务器：运行一个便携二进制，然后通过浏览器访问管理界面。
+Linux 服务端源码位于 `linux-server/`，与 Windows Tauri 后端独立编译，共用 `web/` 前端。它面向没有桌面环境的服务器：运行一个便携二进制，然后通过浏览器访问管理界面。发布的 Linux 便携版适用于 x86_64，程序静态链接并内置网页，但密钥和隧道功能仍需要系统提供 OpenSSH 客户端 `ssh`、`ssh-keygen`。
+
+从 Release 下载 Linux 压缩包后解压并运行：
+
+```bash
+tar -xzf tunnel-helper-linux-x86_64.tar.gz
+./tunnel-helper
+```
+
+其他同网段设备可通过 `http://<Linux主机IP>:6789` 访问；需要网络互通及防火墙允许。监听 `0.0.0.0` 包括所有 IPv4 网卡，不仅限于局域网。服务不会自动修改 Linux 防火墙。
+
+从源码构建：
 
 ```bash
 cd linux-server
@@ -177,15 +191,11 @@ tar -xzf dist/tunnel-helper-linux-x86_64.tar.gz -C portable
 ./portable/tunnel-helper
 ```
 
-默认只监听 `127.0.0.1:6789`，Access Token 关闭，适合本机开发测试。服务端默认把配置和密钥保存在 Linux 二进制同级的 `data/` 中，不读取 Windows 便携版的配置目录。
+默认监听 `0.0.0.0:6789`，Token 认证关闭，允许网络可达的设备访问。默认无认证时任何可访问者都能操作密钥和隧道，请使用可信网络和防火墙。HTTP 不加密，不应直接暴露到公网。
 
-需要从局域网访问时必须启用 Token；程序会拒绝在无认证状态下监听非回环地址：
+服务端把配置和密钥保存在 Linux 二进制同级的 `data/` 中。未创建服务配置文件时不会自动写入个人信息。要启用持久 Token，在 `data/server_settings.json` 中设置 `{"tokenEnabled": true}` 并重启；程序会生成并保存 `accessToken`。设置 `{"listen": "127.0.0.1"}` 或使用 `--listen 127.0.0.1` 可限制为本机访问。更多信息见 [linux-server/README.md](linux-server/README.md)。
 
-```bash
-./tunnel-helper --listen 0.0.0.0 --port 6789 --auth token
-```
-
-启动时会在终端显示生成的 Access Token。也可以通过 `--access-token` 或 `TUNNEL_HELPER_ACCESS_TOKEN` 指定。更完整的开发与部署说明见 [linux-server/README.md](linux-server/README.md)。
+反向隧道适用于目标主机不能被个人电脑直接访问，但能主动连接固定地址中转服务器的情况。程序在中转服务器回环地址上监听，个人电脑通过生成的 `ProxyJump` 配置访问目标主机。浏览器右上角的 `?` 中有正向和反向隧道的完整填写示例。
 
 ## 离线开发说明
 

@@ -25,6 +25,7 @@ ssh_public_keys_bundle.pub
 # Local user configuration
 profiles.json
 app_settings.json
+server_settings.json
 
 # Generated previews and caches
 src-tauri/icons/icon-preview.png

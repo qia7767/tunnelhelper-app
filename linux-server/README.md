@@ -14,7 +14,7 @@ This directory contains the headless Linux edition of Tunnel Helper. It embeds t
 cargo run -- --data-dir ../.dev-data/linux
 ```
 
-Open `http://127.0.0.1:6789`. The default mode deliberately disables authentication only while listening on a loopback address.
+Open `http://127.0.0.1:6789` locally or use the host's network IP. The default listener is `0.0.0.0:6789` with authentication disabled. Anyone who can reach it can manage keys and tunnels; restrict access with a firewall and trusted network.
 
 ## Portable build
 
@@ -39,6 +39,7 @@ portable/
   data/
     profiles.json
     app_settings.json
+    server_settings.json
     ssh_keyfiles_export/
     ssh_public_keys_bundle.pub
 ```
@@ -47,20 +48,19 @@ Files under `data/` are created only when needed. On Linux, the service forces t
 
 ## Access Token
 
-Token support is implemented but not enabled in the default local test mode. A non-loopback listener requires it:
+Token authentication is disabled when `data/server_settings.json` is absent, or `tokenEnabled` is missing, empty, null or false. To enable a persistent Token, create the file with:
 
-```bash
-./tunnel-helper --listen 0.0.0.0 --port 6789 --auth token
+```json
+{ "tokenEnabled": true }
 ```
 
-The service generates and prints a token at startup. To supply a stable token:
+On the next start the service generates `accessToken`, stores it in that file with mode `0600`, prints it in the terminal and reuses it on later starts. Set `listen` to `127.0.0.1` for local-only access; missing, empty or any other value defaults to `0.0.0.0`. An optional `port` sets the listener port. Command-line options override file values. To restrict the listener to the local machine for one run:
 
 ```bash
-TUNNEL_HELPER_ACCESS_TOKEN='replace-with-a-long-random-value' \
-  ./tunnel-helper --listen 0.0.0.0 --auth token
+./tunnel-helper --listen 127.0.0.1
 ```
 
-The browser sends the token in `X-Tunnel-Token` and keeps it in `sessionStorage`, so closing the browser session clears it. Requests without a valid token receive HTTP 401. The server refuses to bind a non-loopback address when authentication is disabled.
+`--auth token` enables Token mode for the current run; without a configured persistent token, it generates a temporary one. `--access-token` or `TUNNEL_HELPER_ACCESS_TOKEN` supplies a token for the current run. The browser keeps the entered token in `sessionStorage`. HTTP does not encrypt traffic, including the token: use a trusted encrypted channel across untrusted networks.
 
 ## Reverse tunnels
 
@@ -87,7 +87,7 @@ Server A must allow TCP forwarding in `sshd_config`. The remote port is delibera
 ## Command-line options
 
 ```text
---listen <IP>           Listener address (default: 127.0.0.1)
+--listen <IP>           Listener address (default: 0.0.0.0)
 --port <PORT>           Browser/API port (default: 6789)
 --data-dir <PATH>       Override the isolated data directory
 --auth disabled|token   Authentication mode (default: disabled)

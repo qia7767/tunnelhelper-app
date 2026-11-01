@@ -1040,7 +1040,39 @@ pre {
 }
 
 .help-panel {
-  max-width: 720px;
+  max-width: 900px;
+}
+
+.help-layout {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 190px minmax(0, 1fr);
+  margin-top: 12px;
+}
+
+.help-navigation {
+  border-right: 1px solid #d7e0ea;
+  max-height: min(65vh, 650px);
+  overflow: auto;
+  padding-right: 10px;
+}
+
+.help-navigation button {
+  background: transparent;
+  border: 0;
+  color: #36526c;
+  display: block;
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 7px 8px;
+  text-align: left;
+  width: 100%;
+}
+
+.help-navigation button:hover,
+.help-navigation button:focus-visible {
+  background: #eef5fa;
+  color: #1458b0;
 }
 
 .help-content {
@@ -1065,6 +1097,20 @@ pre {
   overflow-x: auto;
   padding: 10px 12px;
   white-space: pre;
+}
+
+@media (max-width: 620px) {
+  .help-layout { grid-template-columns: minmax(0, 1fr); }
+  .help-navigation {
+    border-bottom: 1px solid #d7e0ea;
+    border-right: 0;
+    display: flex;
+    max-height: none;
+    overflow-x: auto;
+    padding: 0 0 8px;
+  }
+  .help-navigation button { flex: 0 0 auto; width: auto; }
+  .help-content { max-height: 55vh; }
 }
 
 .confirm-icon {
