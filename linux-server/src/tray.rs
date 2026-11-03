@@ -66,18 +66,46 @@ pub async fn start(
             shutdown: Some(tx),
         };
         tray.open();
-        match tray.spawn().await {
-            Ok(handle) => {
-                return (
-                    Box::pin(async move {
-                        let _ = rx.await;
-                    }),
-                    Some(handle),
-                )
-            }
-            Err(error) => eprintln!("System tray unavailable: {error}"),
+        match tokio::time::timeout(std::time::Duration::from_secs(3), tray.spawn()).await {
+            Ok(Ok(handle)) => return (Box::pin(wait_for_shutdown(rx)), Some(handle)),
+            Ok(Err(error)) => eprintln!("System tray unavailable: {error}"),
+            Err(_) => eprintln!("System tray unavailable: desktop service did not respond"),
         }
     }
     // A closed channel must not shut down headless operation.
     (Box::pin(std::future::pending()), None)
+}
+
+async fn wait_for_shutdown(rx: oneshot::Receiver<()>) {
+    if rx.await.is_err() {
+        std::future::pending::<()>().await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[tokio::test]
+    async fn dropped_tray_does_not_stop_service() {
+        let (tx, rx) = oneshot::channel();
+        drop(tx);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), wait_for_shutdown(rx))
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn explicit_tray_shutdown_still_stops_service() {
+        let (tx, rx) = oneshot::channel();
+        tx.send(()).unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_secs(1), wait_for_shutdown(rx))
+                .await
+                .is_ok()
+        );
+    }
 }

@@ -62,7 +62,7 @@ Tunnel Helper 不适合这些场景：
 - 启动、停止和查看多个后台 SSH 隧道。
 - Linux 无界面版本支持由动态地址服务器 B 主动连接固定地址服务器 A 的反向 SSH 隧道，并生成个人电脑使用的 `ProxyJump` 配置。
 - Linux 浏览器界面提供服务关闭按钮、可选桌面托盘以及中英文帮助与填写示例。
-- Linux 支持通过 `server_settings.json` 调整监听范围、端口和可选的持久 Token。
+- Linux 支持通过 `app_settings.json` 的 `server` 部分调整监听范围、端口和可选的持久 Token。
 - 检测 SSH 服务连通性和本地端口占用；Windows 版可辅助放行防火墙。
 - 写入或复制 OpenSSH `~/.ssh/config` 配置。
 - 生成 SSH 密钥，并辅助安装公钥到 Linux 服务器。
@@ -116,8 +116,8 @@ Tunnel Helper 可以生成 OpenSSH 配置片段，并写入用户目录下的：
 
 - `ssh_keyfiles_export/`：可能包含私钥。
 - `profiles.json`：可能包含服务器地址、用户名、密钥路径、密码字段。
-- `app_settings.json`：可能包含本地默认填空信息。
-- `server_settings.json`：Linux 服务设置，启用认证后可能包含访问 Token。
+- `app_settings.json`：可能包含本地默认填空信息和 Linux 服务访问 Token。
+- `server_settings.json`：旧版 Linux 服务设置，可能包含访问 Token。
 - `backups/`、`downloads/`、`node_modules/`、`src-tauri/target/`：构建产物或缓存目录。
 
 仓库里只应该提供：
@@ -193,7 +193,7 @@ tar -xzf dist/tunnel-helper-linux-x86_64.tar.gz -C portable
 
 默认监听 `0.0.0.0:6789`，Token 认证关闭，允许网络可达的设备访问。默认无认证时任何可访问者都能操作密钥和隧道，请使用可信网络和防火墙。HTTP 不加密，不应直接暴露到公网。
 
-服务端把配置和密钥保存在 Linux 二进制同级的 `data/` 中。未创建服务配置文件时不会自动写入个人信息。要启用持久 Token，在 `data/server_settings.json` 中设置 `{"tokenEnabled": true}` 并重启；程序会生成并保存 `accessToken`。设置 `{"listen": "127.0.0.1"}` 或使用 `--listen 127.0.0.1` 可限制为本机访问。更多信息见 [linux-server/README.md](linux-server/README.md)。
+服务端把配置和密钥保存在 Linux 二进制同级的 `data/` 中。要启用持久 Token，在 `data/app_settings.json` 的 `server` 对象中设置 `tokenEnabled` 为 `true` 并重启；程序会生成并保存 `accessToken`。设置 `server.listen` 为 `127.0.0.1` 或使用 `--listen 127.0.0.1` 可限制为本机访问。旧版 `server_settings.json` 会在新配置尚无 `server` 字段时迁移，原文件保留。更多信息见 [linux-server/README.md](linux-server/README.md)。
 
 反向隧道适用于目标主机不能被个人电脑直接访问，但能主动连接固定地址中转服务器的情况。程序在中转服务器回环地址上监听，个人电脑通过生成的 `ProxyJump` 配置访问目标主机。浏览器右上角的 `?` 中有正向和反向隧道的完整填写示例。
 

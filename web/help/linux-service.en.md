@@ -27,16 +27,17 @@ Enable the import switch before importing to ~/.ssh. Deleting a selected key rem
 ## Profiles and data locations
 By default the Linux portable edition stores profiles.json, app_settings.json and the ssh_keyfiles_export key directory in data next to the executable. Use --data-dir to select another location. The Windows portable edition uses its own program directory; the configurations are separate.
 Profiles can contain server addresses, usernames, passwords or private-key passphrases. Both data and ~/.ssh can contain sensitive information. Review files before migrating them and do not upload private keys or personal configuration to GitHub.
-Apply to Connection saves the current profile before applying its settings. Reordering profiles affects which one is selected first by default.
+Apply to Connection saves the current profile before applying its settings. Duplicate saves the current profile's settings (including passwords) as a new profile. Reordering profiles affects which one is selected first by default.
+In the web interface, Copy Path copies a directory on the Linux host running the service; it does not open a folder on the browser computer. A LAN HTTP page may be unable to access the clipboard, in which case the path can be copied manually from the prompt.
 
 ## Browser access and security
 By default the Linux service listens on 0.0.0.0:6789 (all IPv4 interfaces) with Token authentication disabled. Other devices can connect through the host IP and port 6789 when network and firewall rules permit.
 When authentication is disabled, anyone who can reach the page can manage tunnels, configuration and keys, including deleting keys or stopping the service. 0.0.0.0 is not limited to the LAN; use a trusted network and firewall.
-To enable a persistent Token, put the following in data/server_settings.json and restart. The program generates accessToken in the same file and reuses it on future starts; the startup terminal also displays it.
+To enable a persistent Token, add a server object to data/app_settings.json while retaining other settings, then restart. The program generates server.accessToken in the same file and reuses it on future starts; the startup terminal also displays it.
 ```json
-{ "listen": "0.0.0.0", "tokenEnabled": true }
+{ "server": { "listen": "0.0.0.0", "tokenEnabled": true } }
 ```
-Token authentication defaults to disabled when tokenEnabled is missing, empty, null or false. Set listen to exactly 127.0.0.1 in the configuration for local-only access; other values default to all IPv4 interfaces. Alternatively use --listen 127.0.0.1. Command-line options override the file.
+Token authentication defaults to disabled when server.tokenEnabled is missing, empty, null or false. Set server.listen to 127.0.0.1 for local-only access; other values default to all IPv4 interfaces. Command-line options override the file. If app_settings.json has no server field, legacy server_settings.json is migrated while retaining the original file.
 HTTP itself is not encrypted, so page data including the Token travels in plaintext. Use an encrypted channel such as SSH across untrusted networks.
 Stop Service in the browser stops tunnels managed by that service and exits. Closing the browser page alone does not stop the background service.
 
@@ -61,7 +62,7 @@ On B, use these profile or connection settings:
 Reverse Tunnel: Yes.
 Server User: relay; Server Address: 198.51.100.10; Server Port: 22. These are A's login details.
 Relay Server Listening Port: 22022, an unused port on A. The program listens only on A's 127.0.0.1.
-Local Host Login User: bob; Local Host SSH Port: 22. “Local host” means B, the machine running the Tunnel Helper service, not C, the computer opening the browser.
+Target Host Login User: bob; Target Host SSH Port: 22. The target host is B, the machine running the Tunnel Helper service and being accessed remotely, not C, the computer opening the browser.
 Authentication and optional key: select the method and private key B uses to log in to A. Its public key must already be authorized for relay on A. Provide the private-key passphrase if needed.
 SSH Alias: for example, server-b; this names the generated SSH configuration for C.
 After starting, copy the generated SSH configuration into C's SSH config and connect to server-b. C must authenticate separately to A and B. The generated configuration does not contain B's private-key path; add IdentityFile entries for keys on C if needed. A must allow TCP forwarding, and B's SSH service must be running.

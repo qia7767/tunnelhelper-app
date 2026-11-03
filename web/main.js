@@ -61,6 +61,7 @@ const I18N = {
     userKeys: "用户密钥",
     portableKeys: "程序相对目录密钥",
     openFileLocation: "打开文件位置↗",
+    copyPath: "复制路径",
     selectAll: "全选",
     keyActions: "密钥操作",
     selectedCount: (count, names) => `已选择 ${count} 个：${names}`,
@@ -90,6 +91,10 @@ const I18N = {
     verifyLogin: "验证密钥登录",
     profileList: "配置档案",
     add: "新增",
+    duplicateProfile: "复制档案",
+    profileDuplicated: "档案已复制并保存",
+    noProfileToCopy: "请先选择一个档案",
+    copyPathManually: "浏览器未允许自动复制，请手动复制服务器路径：",
     editProfiles: "编辑 profiles.json",
     deleteProfile: "删除此配置",
     save: "保存",
@@ -102,8 +107,9 @@ const I18N = {
     yes: "是",
     no: "否",
     remotePortOnA: "中转服务器监听端口",
-    reverseTargetUser: "本机登录用户",
-    reverseTargetPort: "本机 SSH 端口",
+    reverseTargetUser: "目标主机登录用户",
+    reverseTargetPort: "目标主机 SSH 端口",
+    tooltipReverseTarget: "目标主机是运行 Tunnel Helper 服务、等待被远程访问的机器，\n不是当前打开浏览器的电脑。",
     authMode: "认证方式",
     keyAuth: "使用密钥",
     passwordAuth: "使用密码",
@@ -336,6 +342,7 @@ const I18N = {
     userKeys: "User Keys",
     portableKeys: "Portable Keys",
     openFileLocation: "Open Folder ↗",
+    copyPath: "Copy Path",
     selectAll: "Select All",
     keyActions: "Key Actions",
     selectedCount: (count, names) => `${count} selected: ${names}`,
@@ -365,6 +372,10 @@ const I18N = {
     verifyLogin: "Verify Key Login",
     profileList: "Profiles",
     add: "Add",
+    duplicateProfile: "Duplicate",
+    profileDuplicated: "Profile duplicated and saved",
+    noProfileToCopy: "Select a profile first",
+    copyPathManually: "The browser blocked automatic copying. Copy the server path manually:",
     editProfiles: "Edit profiles.json",
     deleteProfile: "Delete Profile",
     save: "Save",
@@ -377,8 +388,9 @@ const I18N = {
     yes: "Yes",
     no: "No",
     remotePortOnA: "Relay Server Listening Port",
-    reverseTargetUser: "Local Host Login User",
-    reverseTargetPort: "Local Host SSH Port",
+    reverseTargetUser: "Target Host Login User",
+    reverseTargetPort: "Target Host SSH Port",
+    tooltipReverseTarget: "The target host runs the Tunnel Helper service and is accessed remotely,\nnot the computer currently displaying this browser.",
     authMode: "Authentication",
     keyAuth: "Use Key",
     passwordAuth: "Use Password",
@@ -591,6 +603,7 @@ const I18N = {
 };
 
 const SAVED_PROFILE_KEY_PREFIX = "__saved_profile_key__:";
+const logEntries = [];
 
 const LOG_EN = {
   "读取 app_settings.json 失败": "Failed to read app_settings.json",
@@ -704,6 +717,10 @@ const LOG_EN = {
   "复制 SSH 配置失败": "Failed to copy SSH config",
   "停止失败": "Stop failed",
   "初始化失败": "Initialization failed",
+  "复制密钥目录路径": "Copied key directory path",
+  "复制密钥目录路径失败": "Failed to copy key directory path",
+  "复制配置档案": "Duplicated profile",
+  "复制配置档案失败": "Failed to duplicate profile",
 };
 
 function lang() {
@@ -778,12 +795,16 @@ function translateLogText(text) {
   return translated;
 }
 
+function renderLog() {
+  $("log").textContent = logEntries.map(({ time, message, detail }) => {
+    const translatedDetail = translateLogText(detail);
+    return `[${time}] ${translateLogText(message)}${translatedDetail ? `\n    ${translatedDetail}` : ""}\n`;
+  }).join("");
+}
+
 function log(message, detail = "") {
-  const now = new Date().toLocaleTimeString();
-  const translatedMessage = translateLogText(message);
-  const translatedDetail = translateLogText(detail);
-  const suffix = translatedDetail ? `\n    ${translatedDetail}` : "";
-  $("log").textContent += `[${now}] ${translatedMessage}${suffix}\n`;
+  logEntries.push({ time: new Date().toLocaleTimeString(), message, detail });
+  renderLog();
   $("log").scrollTop = $("log").scrollHeight;
 }
 
@@ -943,8 +964,8 @@ function applyTranslations() {
 
   setText("#keysPage .panel:nth-of-type(1) h2", "userKeys");
   setText("#keysPage .panel:nth-of-type(2) h2", "portableKeys");
-  setButton("openUserKeyDir", "openFileLocation");
-  setButton("openPortableKeyDir", "openFileLocation");
+  setButton("openUserKeyDir", isLinuxServer ? "copyPath" : "openFileLocation");
+  setButton("openPortableKeyDir", isLinuxServer ? "copyPath" : "openFileLocation");
   setText("#keysPage .panel:nth-of-type(3) h2", "keyActions");
   setButton("exportPublicBundle", "exportPublicBundle");
   setButton("deleteSelectedKeys", "deleteSelectedKeys");
@@ -978,6 +999,10 @@ function applyTranslations() {
     ["keygenOffset", "keySuffix"],
     ["keygenPassphrase", "privatePassphraseOptional"],
     ["installPassword", "serverPassword"],
+    ["profileReverseTargetUser", "reverseTargetUser"],
+    ["profileReverseTargetPort", "reverseTargetPort"],
+    ["reverseTargetUser", "reverseTargetUser"],
+    ["reverseTargetPort", "reverseTargetPort"],
   ];
   for (const [inputId, key] of labelRows) {
     const row = $(inputId)?.closest("label")?.querySelector(".label-row");
@@ -988,6 +1013,10 @@ function applyTranslations() {
   setTooltip("#keygenPassphraseInfo", "tooltipKeyPassphrase");
   setTooltip("#installPasswordInfo", "tooltipServerPassword");
   setTooltip("#silentInstallInfo", "tooltipSilentInstall");
+  for (const id of ["profileTargetUserInfo", "profileTargetPortInfo", "targetUserInfo", "targetPortInfo"]) {
+    setTooltip(id, "tooltipReverseTarget");
+    $(id).setAttribute("aria-label", tr("tooltipReverseTarget"));
+  }
   setLabelText("installUser", "serverUser");
   setLabelText("installHost", "serverHost");
   setLabelText("installPort", "sshPort");
@@ -999,6 +1028,7 @@ function applyTranslations() {
   setText("#profilesPage article:nth-of-type(1) h2", "profileList");
   setText("#profilesPage article:nth-of-type(2) h2", "editProfiles");
   setButton("newProfile", "add");
+  setButton("duplicateProfile", "duplicateProfile");
   setButton("deleteProfile", "deleteProfile");
   setButton("saveProfiles", "save");
   setButton("applyProfile", "applyToConnect");
@@ -1009,8 +1039,6 @@ function applyTranslations() {
   setLabelText("profileServerPort", "serverPort");
   setLabelText("profileLocalPort", $("profileReverseTunnel").value === "true" ? "remotePortOnA" : "localStartPort");
   setLabelText("profileReverseTunnel", "reverseTunnel");
-  setLabelText("profileReverseTargetUser", "reverseTargetUser");
-  setLabelText("profileReverseTargetPort", "reverseTargetPort");
   setLabelText("profileAuthMode", "authMode");
   setLabelText("profileKeyName", "optionalKey");
   setLabelText("profileKeyPassphrase", "privatePassphraseOptional");
@@ -1025,8 +1053,6 @@ function applyTranslations() {
   setLabelText("serverPort", "serverPort");
   setLabelText("reverseTunnel", "reverseTunnel");
   setLabelText("localPort", $("reverseTunnel").value === "true" ? "remotePortOnA" : "localPort");
-  setLabelText("reverseTargetUser", "reverseTargetUser");
-  setLabelText("reverseTargetPort", "reverseTargetPort");
   setLabelText("vmIp", "vmIp");
   setLabelText("autoVmIp", "autoVmIp");
   setLabelText("connectKey", "optionalKey");
@@ -1083,6 +1109,7 @@ function applyTranslations() {
   renderKeyLists();
   renderProfileLists();
   renderConnections();
+  renderLog();
 }
 
 function selectedText() {
@@ -2659,6 +2686,27 @@ $("newProfile").addEventListener("click", (event) => runButtonAction(event.curre
   log("新增配置档案", profile.name);
   showToast(tr("profileAdded"), profile.name, "success", 2400);
 }));
+$("duplicateProfile").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyCopying"), async () => {
+  const index = state.profiles.findIndex((profile) => profile.name === state.selectedProfileName);
+  if (index < 0) {
+    showToast(tr("noProfileToCopy"), "", "info", 2600);
+    return;
+  }
+  const current = activeProfileFromEditor();
+  const copy = { ...current, name: uniqueProfileName(`${current.name || "profile"}-copy`) };
+  const next = [...state.profiles];
+  next.splice(index + 1, 0, copy);
+  await invoke("save_profiles", { profiles: next });
+  state.profiles = next;
+  state.selectedProfileName = copy.name;
+  fillEditor(copy);
+  renderProfileLists();
+  log("复制配置档案", copy.name);
+  showToast(tr("profileDuplicated"), copy.name, "success", 2600);
+}).catch((error) => {
+  log("复制配置档案失败", String(error));
+  showToast(tr("profileSaveFailed"), String(error), "error", 5200);
+}));
 $("applyProfile").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyApplying"), async () => {
   const profile = await saveProfiles(false);
   fillConnect(profile);
@@ -2757,23 +2805,53 @@ $("selectAllUserKeys").addEventListener("change", (event) => {
 $("selectAllPortableKeys").addEventListener("change", (event) => {
   setKeyGroupSelection(state.keys.filter((key) => !isUserKey(key)), event.target.checked, "程序目录密钥");
 });
+async function copyServerKeyPath(path) {
+  const resolved = await invoke("open_path", { path });
+  let copied = false;
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(resolved);
+      copied = true;
+    } catch (_) {
+      // HTTP pages on a LAN may not have clipboard permission.
+    }
+  }
+  if (!copied) {
+    const input = document.createElement("textarea");
+    input.value = resolved;
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.appendChild(input);
+    input.select();
+    try { copied = document.execCommand("copy"); } catch (_) { /* Manual copy below. */ }
+    input.remove();
+  }
+  if (!copied) {
+    window.prompt(tr("copyPathManually"), resolved);
+    return;
+  }
+  log("复制密钥目录路径", resolved);
+  showToast(tr("copied"), resolved, "success", 3000);
+}
 $("openUserKeyDir").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyOpening"), async () => {
+  if (isLinuxServer) return copyServerKeyPath("~/.ssh");
   log("打开用户密钥目录", "~/.ssh");
   showToast(tr("userKeyDirOpening"), "~/.ssh", "info", 2600);
   await invoke("open_path", { path: "~/.ssh" });
   showToast(tr("userKeyDirOpened"), "~/.ssh", "success", 2600);
 }).catch((error) => {
-  log("打开用户密钥目录失败", String(error));
-  showToast(tr("openFailed"), String(error), "error", 5200);
+  log(isLinuxServer ? "复制密钥目录路径失败" : "打开用户密钥目录失败", String(error));
+  showToast(tr(isLinuxServer ? "copyFailed" : "openFailed"), String(error), "error", 5200);
 }));
 $("openPortableKeyDir").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyOpening"), async () => {
+  if (isLinuxServer) return copyServerKeyPath("ssh_keyfiles_export");
   log("打开程序相对目录密钥位置", "ssh_keyfiles_export");
   showToast(tr("portableKeyDirOpening"), "ssh_keyfiles_export", "info", 2600);
   await invoke("open_path", { path: "ssh_keyfiles_export" });
   showToast(tr("portableKeyDirOpened"), "ssh_keyfiles_export", "success", 2600);
 }).catch((error) => {
-  log("打开程序相对目录失败", String(error));
-  showToast(tr("openFailed"), String(error), "error", 5200);
+  log(isLinuxServer ? "复制密钥目录路径失败" : "打开程序相对目录失败", String(error));
+  showToast(tr(isLinuxServer ? "copyFailed" : "openFailed"), String(error), "error", 5200);
 }));
 $("syncInstallFields").addEventListener("click", (event) => runButtonAction(event.currentTarget, tr("busyFilling"), async () => {
   syncInstallFields(true);
@@ -2812,7 +2890,8 @@ $("copyConfig").addEventListener("click", (event) => runButtonAction(event.curre
   showToast(tr("copyFailed"), String(error), "error", 5200);
 }));
 $("clearLog").addEventListener("click", () => {
-  $("log").textContent = "";
+  logEntries.length = 0;
+  renderLog();
   showToast(tr("logCleared"), "", "success", 1800);
 });
 $("contextCopy").addEventListener("click", async () => {

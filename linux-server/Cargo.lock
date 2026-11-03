@@ -1136,7 +1136,7 @@ dependencies = [
 
 [[package]]
 name = "tunnel-helper-server"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "axum",
  "clap",

@@ -214,7 +214,7 @@
           <article class="panel span-4">
             <div class="panel-title">
               <h2>配置档案</h2>
-              <button id="newProfile">新增</button>
+              <div class="inline-actions"><button id="duplicateProfile" class="linux-only">复制档案</button><button id="newProfile">新增</button></div>
             </div>
             <div id="profileList" class="profile-list"></div>
           </article>
@@ -261,11 +261,11 @@
                 </select>
               </label>
               <label id="profileReverseTargetUserWrap" class="linux-only hidden">
-                本机登录用户
+                <span class="label-row">目标主机登录用户 <span id="profileTargetUserInfo" class="info-dot" tabindex="0" role="img">?</span></span>
                 <input id="profileReverseTargetUser" />
               </label>
               <label id="profileReverseTargetPortWrap" class="linux-only hidden">
-                本机 SSH 端口
+                <span class="label-row">目标主机 SSH 端口 <span id="profileTargetPortInfo" class="info-dot" tabindex="0" role="img">?</span></span>
                 <input id="profileReverseTargetPort" type="number" min="1" max="65535" value="22" />
               </label>
               <label>
@@ -336,11 +336,11 @@
                 <input id="localPort" type="number" min="1" max="65535" value="2222" />
               </label>
               <label id="reverseTargetUserWrap" class="linux-only hidden">
-                本机登录用户
+                <span class="label-row">目标主机登录用户 <span id="targetUserInfo" class="info-dot" tabindex="0" role="img">?</span></span>
                 <input id="reverseTargetUser" />
               </label>
               <label id="reverseTargetPortWrap" class="linux-only hidden">
-                本机 SSH 端口
+                <span class="label-row">目标主机 SSH 端口 <span id="targetPortInfo" class="info-dot" tabindex="0" role="img">?</span></span>
                 <input id="reverseTargetPort" type="number" min="1" max="65535" value="22" />
               </label>
               <label id="vmIpWrap">

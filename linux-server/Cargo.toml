@@ -1,6 +1,6 @@
 [package]
 name = "tunnel-helper-server"
-version = "0.2.0"
+version = "0.2.1"
 description = "Headless browser-based Tunnel Helper server"
 authors = ["Ro"]
 edition = "2021"

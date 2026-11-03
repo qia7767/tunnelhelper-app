@@ -519,6 +519,8 @@ p {
 
 .info-dot:hover::after,
 .info-dot:hover::before,
+.info-dot:focus-visible::after,
+.info-dot:focus-visible::before,
 .hinted:hover::after,
 .hinted:hover::before {
   opacity: 1;

@@ -29,7 +29,7 @@ cd portable
 ./tunnel-helper
 ```
 
-The generated executable is static PIE and embeds the complete browser frontend. It does not require glibc or shared application libraries on the destination machine. The tar archive preserves the executable bit and contains a single file named `tunnel-helper`. Tunnel and key operations still call the standard Linux commands `ssh` and `ssh-keygen`; install the OpenSSH client if the destination distribution does not provide them.
+The generated executable is static PIE and embeds the complete browser frontend. It does not require glibc or shared application libraries on the destination machine. The tar archive preserves the executable bit and contains `tunnel-helper` and the `help/` documents. Tunnel and key operations still call the standard Linux commands `ssh` and `ssh-keygen`; install the OpenSSH client if the destination distribution does not provide them.
 
 The default portable layout is:
 
@@ -39,7 +39,6 @@ portable/
   data/
     profiles.json
     app_settings.json
-    server_settings.json
     ssh_keyfiles_export/
     ssh_public_keys_bundle.pub
 ```
@@ -48,13 +47,13 @@ Files under `data/` are created only when needed. On Linux, the service forces t
 
 ## Access Token
 
-Token authentication is disabled when `data/server_settings.json` is absent, or `tokenEnabled` is missing, empty, null or false. To enable a persistent Token, create the file with:
+Token authentication is disabled when `data/app_settings.json` has no `server.tokenEnabled`, or its value is empty, null or false. To enable a persistent Token, add this `server` object while retaining your existing settings:
 
 ```json
-{ "tokenEnabled": true }
+{ "server": { "tokenEnabled": true } }
 ```
 
-On the next start the service generates `accessToken`, stores it in that file with mode `0600`, prints it in the terminal and reuses it on later starts. Set `listen` to `127.0.0.1` for local-only access; missing, empty or any other value defaults to `0.0.0.0`. An optional `port` sets the listener port. Command-line options override file values. To restrict the listener to the local machine for one run:
+On the next start the service generates `server.accessToken`, stores it in that file with mode `0600`, prints it in the terminal and reuses it on later starts. Set `server.listen` to `127.0.0.1` for local-only access; missing, empty or any other value defaults to `0.0.0.0`. An optional `server.port` sets the listener port. Command-line options override file values. If `server` is absent, an existing legacy `server_settings.json` is migrated into `app_settings.json`; the legacy file is left intact. To restrict the listener to the local machine for one run:
 
 ```bash
 ./tunnel-helper --listen 127.0.0.1

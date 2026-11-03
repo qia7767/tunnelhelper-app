@@ -1,5 +1,5 @@
 use crate::{
-    config::ServerConfig,
+    config::{read_settings, write_settings, ServerConfig},
     models::{
         AppSettings, CommandResult, KeyBundle, PasswordTunnelRequest, Profile, TunnelRequest,
         TunnelStartResult, TunnelStatus, VmIpCandidate,
@@ -221,7 +221,12 @@ impl CommandService {
     }
 
     fn save_app_settings(&self, settings: &AppSettings) -> Result<(), String> {
-        write_json(&self.paths.settings, settings)
+        let mut existing = read_settings(&self.paths.settings)?;
+        let incoming = serde_json::to_value(settings).map_err(|error| error.to_string())?;
+        for (key, value) in incoming.as_object().ok_or("Invalid settings")? {
+            existing[key] = value.clone();
+        }
+        write_settings(&self.paths.settings, &existing)
     }
 
     fn scan_key_bundles(&self) -> Result<Vec<KeyBundle>, String> {
@@ -1341,7 +1346,11 @@ struct OpenPathArgs {
 
 #[cfg(test)]
 mod tests {
-    use super::{generate_reverse_proxy_config, tunnel_args, GenerateReverseConfigArgs};
+    use super::{
+        generate_reverse_proxy_config, tunnel_args, AppSettings, CommandService,
+        GenerateReverseConfigArgs,
+    };
+    use crate::config::{AuthMode, ServerConfig};
 
     #[test]
     fn local_tunnel_keeps_lan_listener() {
@@ -1377,5 +1386,36 @@ mod tests {
         assert!(config.contains("User server-b-user"));
         assert!(config.contains("User jump-user\n    # Set the relay server private key path on this computer:\n    # IdentityFile ~/.ssh/id_ed25519_jump-user\n    # IdentitiesOnly yes"));
         assert!(config.contains("User server-b-user\n    # Set the target host private key path on this computer:\n    # IdentityFile ~/.ssh/id_ed25519_server-b-user\n    # IdentitiesOnly yes"));
+    }
+
+    #[test]
+    fn ui_settings_save_preserves_server_secrets_without_exposing_them() {
+        let dir = std::env::temp_dir().join(format!(
+            "tunnel-helper-settings-test-{}",
+            rand::random::<u64>()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("app_settings.json");
+        std::fs::write(&path, r#"{"language":"zh","server":{"listen":"127.0.0.1","tokenEnabled":true,"accessToken":"test-token"},"extra":"preserved"}"#).unwrap();
+        let config = ServerConfig {
+            listen: "127.0.0.1".parse().unwrap(),
+            port: 6789,
+            data_dir: dir.clone(),
+            auth_mode: AuthMode::Token,
+            access_token: Some("test-token".to_string()),
+        };
+        let service = CommandService::new(&config).unwrap();
+        let mut settings: AppSettings = service.load_app_settings().unwrap();
+        assert!(!serde_json::to_string(&settings)
+            .unwrap()
+            .contains("test-token"));
+        settings.language = "en".to_string();
+        service.save_app_settings(&settings).unwrap();
+        let saved: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        assert_eq!(saved["language"], "en");
+        assert_eq!(saved["server"]["accessToken"], "test-token");
+        assert_eq!(saved["extra"], "preserved");
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

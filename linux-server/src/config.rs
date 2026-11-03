@@ -22,13 +22,13 @@ pub enum AuthMode {
 pub struct Cli {
     #[arg(
         long,
-        help = "Listener IP (default: 0.0.0.0, unless set in server_settings.json)"
+        help = "Listener IP (default: 0.0.0.0, unless set in app_settings.json)"
     )]
     pub listen: Option<IpAddr>,
 
     #[arg(
         long,
-        help = "Listener port (default: 6789, unless set in server_settings.json)"
+        help = "Listener port (default: 6789, unless set in app_settings.json)"
     )]
     pub port: Option<u16>,
 
@@ -58,8 +58,23 @@ impl ServerConfig {
             None => executable_dir()?.join("data"),
         };
 
-        let path = data_dir.join("server_settings.json");
-        let mut settings = read_settings(&path)?;
+        let path = data_dir.join("app_settings.json");
+        let legacy_path = data_dir.join("server_settings.json");
+        let mut app_settings = read_settings(&path)?;
+        if app_settings.get("server").is_none() && legacy_path.exists() {
+            let legacy = read_settings(&legacy_path)?;
+            validate_server_settings(&legacy)?;
+            app_settings["server"] = legacy;
+            write_settings(&path, &app_settings)?;
+        }
+        let mut settings = match app_settings.get("server") {
+            None | Some(Value::Null) => json!({}),
+            Some(value) if value.is_object() => value.clone(),
+            Some(_) => {
+                return Err("app_settings.json: server must be an object or null".to_string())
+            }
+        };
+        validate_server_settings(&settings)?;
         let configured_token = settings
             .get("tokenEnabled")
             .and_then(Value::as_bool)
@@ -88,10 +103,12 @@ impl ServerConfig {
             Some(port) => port,
             None => match settings.get("port") {
                 None | Some(Value::Null) => 6789,
-                Some(value) => {
-                    u16::try_from(value.as_u64().ok_or("server_settings.json: invalid port")?)
-                        .map_err(|_| "server_settings.json: invalid port")?
-                }
+                Some(value) => u16::try_from(
+                    value
+                        .as_u64()
+                        .ok_or("app_settings.json: invalid server port")?,
+                )
+                .map_err(|_| "app_settings.json: invalid server port")?,
             },
         };
         let access_token = match auth_mode {
@@ -111,7 +128,8 @@ impl ServerConfig {
                     None if configured_token => {
                         let token = generate_access_token();
                         settings["accessToken"] = json!(token);
-                        write_settings(&path, &settings)?;
+                        app_settings["server"] = settings.clone();
+                        write_settings(&path, &app_settings)?;
                         token
                     }
                     None => generate_access_token(),
@@ -138,7 +156,7 @@ impl ServerConfig {
     }
 }
 
-fn read_settings(path: &std::path::Path) -> Result<Value, String> {
+pub(crate) fn read_settings(path: &std::path::Path) -> Result<Value, String> {
     if !path.exists() {
         return Ok(json!({}));
     }
@@ -149,21 +167,25 @@ fn read_settings(path: &std::path::Path) -> Result<Value, String> {
     if !settings.is_object() {
         return Err(format!("{} must contain a JSON object", path.display()));
     }
+    Ok(settings)
+}
+
+fn validate_server_settings(settings: &Value) -> Result<(), String> {
     if let Some(value) = settings.get("tokenEnabled") {
         if !value.is_null()
             && !value.is_boolean()
             && !value.as_str().is_some_and(|text| text.trim().is_empty())
         {
             return Err(
-                "server_settings.json: tokenEnabled must be true, false, null, or empty"
+                "app_settings.json: server.tokenEnabled must be true, false, null, or empty"
                     .to_string(),
             );
         }
     }
-    Ok(settings)
+    Ok(())
 }
 
-fn write_settings(path: &std::path::Path, settings: &Value) -> Result<(), String> {
+pub(crate) fn write_settings(path: &std::path::Path, settings: &Value) -> Result<(), String> {
     use std::io::Write;
     fs::create_dir_all(path.parent().ok_or("Missing settings directory")?)
         .map_err(|error| error.to_string())?;
@@ -256,16 +278,24 @@ mod tests {
             rand::random::<u64>()
         ));
         fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("server_settings.json");
-        fs::write(&path, r#"{"tokenEnabled":true,"other":"preserved"}"#).unwrap();
+        let path = dir.join("app_settings.json");
+        fs::write(
+            &path,
+            r#"{"language":"en","server":{"tokenEnabled":true,"other":"preserved"}}"#,
+        )
+        .unwrap();
         let first = ServerConfig::from_cli(test_cli(dir.clone())).unwrap();
         let second = ServerConfig::from_cli(test_cli(dir.clone())).unwrap();
         assert_eq!(first.auth_mode, AuthMode::Token);
         assert_eq!(first.access_token, second.access_token);
         assert_eq!(first.access_token.as_ref().unwrap().len(), 40);
         let saved = read_settings(&path).unwrap();
-        assert_eq!(saved["other"], "preserved");
-        assert_eq!(saved["accessToken"].as_str(), first.access_token.as_deref());
+        assert_eq!(saved["language"], "en");
+        assert_eq!(saved["server"]["other"], "preserved");
+        assert_eq!(
+            saved["server"]["accessToken"].as_str(),
+            first.access_token.as_deref()
+        );
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -284,11 +314,11 @@ mod tests {
             rand::random::<u64>()
         ));
         fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("server_settings.json");
+        let path = dir.join("app_settings.json");
         for value in [json!(null), json!(""), json!("  "), json!(false)] {
             fs::write(
                 &path,
-                json!({ "tokenEnabled": value, "accessToken": "unused" }).to_string(),
+                json!({ "server": { "tokenEnabled": value, "accessToken": "unused" } }).to_string(),
             )
             .unwrap();
             assert_eq!(
@@ -308,14 +338,14 @@ mod tests {
             rand::random::<u64>()
         ));
         fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("server_settings.json");
+        let path = dir.join("app_settings.json");
         for (value, expected) in [
             (json!("127.0.0.1"), Ipv4Addr::LOCALHOST),
             (json!(""), Ipv4Addr::UNSPECIFIED),
             (json!("192.0.2.1"), Ipv4Addr::UNSPECIFIED),
             (json!(null), Ipv4Addr::UNSPECIFIED),
         ] {
-            fs::write(&path, json!({ "listen": value }).to_string()).unwrap();
+            fs::write(&path, json!({ "server": { "listen": value } }).to_string()).unwrap();
             assert_eq!(
                 ServerConfig::from_cli(test_cli(dir.clone()))
                     .unwrap()
@@ -329,6 +359,34 @@ mod tests {
             ServerConfig::from_cli(cli).unwrap().listen,
             IpAddr::V4(Ipv4Addr::new(192, 0, 2, 1))
         );
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn legacy_settings_migrate_without_overwriting_app_settings() {
+        let dir = env::temp_dir().join(format!(
+            "tunnel-helper-config-test-{}",
+            rand::random::<u64>()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let app = dir.join("app_settings.json");
+        let legacy = dir.join("server_settings.json");
+        fs::write(
+            &app,
+            r#"{"language":"en","defaults":{"keygenUser":"example"}}"#,
+        )
+        .unwrap();
+        let legacy_text =
+            r#"{"listen":"127.0.0.1","tokenEnabled":true,"accessToken":"test-token"}"#;
+        fs::write(&legacy, legacy_text).unwrap();
+        let config = ServerConfig::from_cli(test_cli(dir.clone())).unwrap();
+        assert_eq!(config.listen, IpAddr::V4(Ipv4Addr::LOCALHOST));
+        assert_eq!(config.access_token.as_deref(), Some("test-token"));
+        let saved = read_settings(&app).unwrap();
+        assert_eq!(saved["language"], "en");
+        assert_eq!(saved["defaults"]["keygenUser"], "example");
+        assert_eq!(saved["server"]["accessToken"], "test-token");
+        assert_eq!(fs::read_to_string(legacy).unwrap(), legacy_text);
         fs::remove_dir_all(dir).unwrap();
     }
 }
