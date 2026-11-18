@@ -27,12 +27,104 @@ struct ManagedTunnel {
     child: Child,
     askpass_path: Option<PathBuf>,
     control_path: PathBuf,
+    connection: ConnectionInfo,
+}
+
+#[cfg(not(windows))]
+fn tunnel_connected(tunnel: &ManagedTunnel) -> bool {
+    tunnel.control_path.exists()
+}
+
+#[cfg(windows)]
+fn windows_ssh_children(pid: u32) -> Vec<u32> {
+    use windows_sys::Win32::{Foundation::{CloseHandle, INVALID_HANDLE_VALUE}, System::Diagnostics::ToolHelp::{CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS}};
+    let mut children = Vec::new();
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot == INVALID_HANDLE_VALUE { return children; }
+        let mut entry: PROCESSENTRY32W = std::mem::zeroed();
+        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+        let mut found = Process32FirstW(snapshot, &mut entry);
+        while found != 0 {
+            let end = entry.szExeFile.iter().position(|ch| *ch == 0).unwrap_or(entry.szExeFile.len());
+            let name = String::from_utf16_lossy(&entry.szExeFile[..end]);
+            if entry.th32ParentProcessID == pid && name.eq_ignore_ascii_case("ssh.exe") {
+                children.push(entry.th32ProcessID);
+            }
+            found = Process32NextW(snapshot, &mut entry);
+        }
+        CloseHandle(snapshot);
+    }
+    children
+}
+
+#[cfg(windows)]
+fn windows_tcp_listeners() -> Result<Vec<(u16, u32)>, String> {
+    use windows_sys::Win32::{NetworkManagement::IpHelper::{GetExtendedTcpTable, MIB_TCP6ROW_OWNER_PID, MIB_TCPROW_OWNER_PID, TCP_TABLE_OWNER_PID_LISTENER}, Networking::WinSock::{AF_INET, AF_INET6}};
+    let mut listeners = Vec::new();
+    for family in [AF_INET, AF_INET6] {
+        let mut size = 0u32;
+        unsafe { GetExtendedTcpTable(std::ptr::null_mut(), &mut size, 0, u32::from(family), TCP_TABLE_OWNER_PID_LISTENER, 0); }
+        for _ in 0..3 {
+            if size < 4 || size > 16 * 1024 * 1024 { return Err("Invalid TCP table size".to_string()); }
+            let mut buffer = vec![0u32; (size as usize + 3) / 4];
+            let mut actual = (buffer.len() * 4) as u32;
+            let status = unsafe { GetExtendedTcpTable(buffer.as_mut_ptr().cast(), &mut actual, 0, u32::from(family), TCP_TABLE_OWNER_PID_LISTENER, 0) };
+            if status == 122 { size = actual; continue; }
+            if status != 0 { return Err(format!("Cannot read TCP listeners: {status}")); }
+            let count = buffer[0] as usize;
+            let row_size = if family == AF_INET { std::mem::size_of::<MIB_TCPROW_OWNER_PID>() } else { std::mem::size_of::<MIB_TCP6ROW_OWNER_PID>() };
+            if count > (actual as usize).saturating_sub(4) / row_size { return Err("Invalid TCP listener table".to_string()); }
+            let rows = unsafe { buffer.as_ptr().cast::<u8>().add(4) };
+            for index in 0..count {
+                let ptr = unsafe { rows.add(index * row_size) };
+                let (port, pid) = if family == AF_INET {
+                    let row = unsafe { std::ptr::read_unaligned(ptr.cast::<MIB_TCPROW_OWNER_PID>()) };
+                    (row.dwLocalPort, row.dwOwningPid)
+                } else {
+                    let row = unsafe { std::ptr::read_unaligned(ptr.cast::<MIB_TCP6ROW_OWNER_PID>()) };
+                    (row.dwLocalPort, row.dwOwningPid)
+                };
+                listeners.push((u16::from_be(port as u16), pid));
+            }
+            size = 0;
+            break;
+        }
+        if size != 0 { return Err("TCP listener table changed repeatedly".to_string()); }
+    }
+    Ok(listeners)
+}
+
+#[cfg(windows)]
+fn tunnel_connected(tunnel: &ManagedTunnel) -> bool {
+    let mut pids = vec![tunnel.connection.pid];
+    if tunnel.connection.reconnect { pids.extend(windows_ssh_children(tunnel.connection.pid)); }
+    windows_tcp_listeners().is_ok_and(|listeners| listeners.iter().any(|(port, pid)| *port == tunnel.connection.local_port && pids.contains(pid)))
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ConnectionInfo {
+    pid: u32,
+    user: String,
+    host: String,
+    server_port: u16,
+    local_port: u16,
+    auth_mode: &'static str,
+    reconnect: bool,
+    reverse_tunnel: bool,
+    reverse_target_port: u16,
+    identity_file: Option<String>,
+    command: String,
+    running: bool,
+    connected: bool,
 }
 
 #[derive(Clone)]
 pub struct CommandService {
     paths: Arc<AppPaths>,
     tunnels: Arc<Mutex<HashMap<u32, ManagedTunnel>>>,
+    settings_lock: Arc<std::sync::Mutex<()>>,
 }
 
 struct AppPaths {
@@ -59,6 +151,7 @@ impl CommandService {
                 data_dir,
             }),
             tunnels: Arc::new(Mutex::new(HashMap::new())),
+            settings_lock: Arc::new(std::sync::Mutex::new(())),
         })
     }
 
@@ -165,6 +258,7 @@ impl CommandService {
                 let input: PidArgs = parse(args)?;
                 to_value(self.check_tunnel_status(input.pid).await?)
             }
+            "list_connections" => to_value(self.list_connections().await?),
             "stop_tunnel" => {
                 let input: PidArgs = parse(args)?;
                 self.stop_tunnel(input.pid).await?;
@@ -221,11 +315,28 @@ impl CommandService {
     }
 
     fn save_app_settings(&self, settings: &AppSettings) -> Result<(), String> {
+        let _guard = self.settings_lock.lock().map_err(|_| "Settings lock poisoned")?;
         let mut existing = read_settings(&self.paths.settings)?;
         let incoming = serde_json::to_value(settings).map_err(|error| error.to_string())?;
         for (key, value) in incoming.as_object().ok_or("Invalid settings")? {
             existing[key] = value.clone();
         }
+        write_settings(&self.paths.settings, &existing)
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn tray_language(&self) -> Result<String, String> {
+        let _guard = self.settings_lock.lock().map_err(|_| "Settings lock poisoned")?;
+        let settings = read_settings(&self.paths.settings)?;
+        Ok(if settings.get("language").and_then(Value::as_str) == Some("en") { "en" } else { "zh" }.to_string())
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn set_tray_language(&self, language: &str) -> Result<(), String> {
+        if language != "en" && language != "zh" { return Err("Unsupported language".to_string()); }
+        let _guard = self.settings_lock.lock().map_err(|_| "Settings lock poisoned")?;
+        let mut existing = read_settings(&self.paths.settings)?;
+        existing["language"] = Value::String(language.to_string());
         write_settings(&self.paths.settings, &existing)
     }
 
@@ -380,6 +491,10 @@ impl CommandService {
     }
 
     async fn start_key_tunnel(&self, request: TunnelRequest) -> Result<TunnelStartResult, String> {
+        let connection = ConnectionInfo { pid: 0, user: request.user.clone(), host: request.host.clone(),
+            server_port: request.server_port, local_port: request.local_port, auth_mode: "key", reconnect: request.reconnect,
+            reverse_tunnel: request.reverse_tunnel, reverse_target_port: request.reverse_target_port,
+            identity_file: request.identity_file.clone(), command: String::new(), running: true, connected: false };
         let askpass = request
             .identity_passphrase
             .as_deref()
@@ -406,7 +521,7 @@ impl CommandService {
             }
             insert_before_forward(&mut args, identity_args)?;
         }
-        self.spawn_tunnel(args, askpass, request.reconnect, request.reconnect_delay)
+        self.spawn_tunnel(args, askpass, request.reconnect, request.reconnect_delay, connection)
             .await
     }
 
@@ -414,6 +529,10 @@ impl CommandService {
         &self,
         request: PasswordTunnelRequest,
     ) -> Result<TunnelStartResult, String> {
+        let connection = ConnectionInfo { pid: 0, user: request.user.clone(), host: request.host.clone(),
+            server_port: request.server_port, local_port: request.local_port, auth_mode: "password", reconnect: request.reconnect,
+            reverse_tunnel: request.reverse_tunnel, reverse_target_port: request.reverse_target_port,
+            identity_file: None, command: String::new(), running: true, connected: false };
         let password = request
             .password
             .filter(|value| !value.is_empty())
@@ -434,19 +553,65 @@ impl CommandService {
                 "PreferredAuthentications=password,keyboard-interactive".to_string(),
                 "-o".to_string(),
                 "PubkeyAuthentication=no".to_string(),
+                "-o".to_string(),
+                "NumberOfPasswordPrompts=1".to_string(),
             ],
         )?;
-        self.spawn_tunnel(args, askpass, request.reconnect, request.reconnect_delay)
+        self.spawn_tunnel(args, askpass, request.reconnect, request.reconnect_delay, connection)
             .await
     }
 
     async fn spawn_tunnel(
         &self,
-        mut args: Vec<String>,
+        args: Vec<String>,
         askpass_path: Option<PathBuf>,
         reconnect: bool,
         reconnect_delay: Option<u64>,
+        connection: ConnectionInfo,
     ) -> Result<TunnelStartResult, String> {
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            if connection.reverse_tunnel {
+                if let Some(path) = askpass_path.as_ref() { let _ = fs::remove_file(path); }
+                return Err("Windows web reverse tunnels are not yet supported".to_string());
+            }
+            if !is_local_port_available(connection.local_port) {
+                if let Some(path) = askpass_path.as_ref() { let _ = fs::remove_file(path); }
+                return Err(format!("Local port {} is already in use", connection.local_port));
+            }
+            let command_text = format!("ssh {}", args.join(" "));
+            let mut command = if reconnect {
+                let quoted = args.iter().map(|value| format!("'{}'", value.replace('\'', "''"))).collect::<Vec<_>>().join(",");
+                let delay = reconnect_delay.unwrap_or(5).clamp(1, 86400);
+                let script = format!("$sshArgs=@({quoted}); while ($true) {{ & ssh.exe @sshArgs; Start-Sleep -Seconds {delay} }}");
+                let mut shell = TokioCommand::new("powershell.exe");
+                shell.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
+                shell
+            } else {
+                let mut ssh = TokioCommand::new("ssh.exe");
+                ssh.args(&args);
+                ssh
+            };
+            command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).kill_on_drop(true);
+            command.as_std_mut().creation_flags(0x08000000);
+            configure_askpass(&mut command, askpass_path.as_deref());
+            let child = match command.spawn() {
+                Ok(child) => child,
+                Err(error) => {
+                    if let Some(path) = askpass_path.as_ref() { let _ = fs::remove_file(path); }
+                    return Err(error.to_string());
+                }
+            };
+            let pid = child.id().ok_or_else(|| "Tunnel process has no PID".to_string())?;
+            let connection = ConnectionInfo { pid, command: command_text.clone(), ..connection };
+            self.tunnels.lock().await.insert(pid, ManagedTunnel { child, askpass_path,
+                control_path: PathBuf::new(), connection });
+            return Ok(TunnelStartResult { pid, command: command_text, connected_marker: None });
+        }
+        #[cfg(not(windows))]
+        {
+        let mut args = args;
         let control_path = env::temp_dir().join(format!(
             "tunnel-helper-control-{}-{}.sock",
             std::process::id(),
@@ -499,12 +664,14 @@ impl CommandService {
         let pid = child
             .id()
             .ok_or_else(|| "Tunnel process has no PID".to_string())?;
+        let connection = ConnectionInfo { pid, command: command_text.clone(), ..connection };
         self.tunnels.lock().await.insert(
             pid,
             ManagedTunnel {
                 child,
                 askpass_path,
                 control_path: control_path.clone(),
+                    connection,
             },
         );
         Ok(TunnelStartResult {
@@ -512,6 +679,29 @@ impl CommandService {
             command: command_text,
             connected_marker: Some(control_path.to_string_lossy().to_string()),
         })
+        }
+    }
+
+    async fn list_connections(&self) -> Result<Vec<ConnectionInfo>, String> {
+        #[cfg(windows)]
+        let listeners = windows_tcp_listeners()?;
+        let mut tunnels = self.tunnels.lock().await;
+        let mut connections = Vec::with_capacity(tunnels.len());
+        for tunnel in tunnels.values_mut() {
+            let mut connection = tunnel.connection.clone();
+            connection.running = tunnel.child.try_wait().map_err(|error| error.to_string())?.is_none();
+            #[cfg(not(windows))]
+            { connection.connected = connection.running && tunnel_connected(tunnel); }
+            #[cfg(windows)]
+            {
+                let mut pids = vec![connection.pid];
+                if connection.running && connection.reconnect { pids.extend(windows_ssh_children(connection.pid)); }
+                connection.connected = connection.running && listeners.iter().any(|(port, pid)| *port == connection.local_port && pids.contains(pid));
+            }
+            connections.push(connection);
+        }
+        connections.sort_by_key(|connection| std::cmp::Reverse(connection.pid));
+        Ok(connections)
     }
 
     async fn check_tunnel_status(&self, pid: u32) -> Result<TunnelStatus, String> {
@@ -529,7 +719,7 @@ impl CommandService {
                 pid,
                 running: true,
                 exit_code: None,
-                connected: tunnel.control_path.exists(),
+                connected: tunnel_connected(tunnel),
             }),
             Some(status) => {
                 let exit_code = status.code();
@@ -577,14 +767,25 @@ fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T, String> {
 }
 
 fn write_json<T: serde::Serialize + ?Sized>(path: &Path, value: &T) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let value = serde_json::to_value(value).map_err(|error| error.to_string())?;
+        return write_settings(path, &value);
+    }
+    #[cfg(not(windows))]
+    {
     let text = serde_json::to_string_pretty(value).map_err(|error| error.to_string())?;
     fs::write(path, format!("{text}\n")).map_err(|error| error.to_string())?;
     secure_private_file(path)
+    }
 }
 
 fn home_dir() -> Result<PathBuf, String> {
-    env::var_os("HOME")
-        .or_else(|| env::var_os("USERPROFILE"))
+    #[cfg(windows)]
+    let home = env::var_os("USERPROFILE").or_else(|| env::var_os("HOME"));
+    #[cfg(not(windows))]
+    let home = env::var_os("HOME").or_else(|| env::var_os("USERPROFILE"));
+    home
         .map(PathBuf::from)
         .ok_or_else(|| "HOME is not set".to_string())
 }
@@ -689,13 +890,42 @@ fn secure_private_file(path: &Path) -> Result<(), String> {
         .map_err(|error| format!("Cannot set private file mode 0600: {error}"))
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 fn secure_private_file(_path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(windows)]
+fn secure_private_file(path: &Path) -> Result<(), String> {
+    secure_private_key(path)
+}
+
+#[cfg(not(windows))]
 fn secure_private_key(path: &Path) -> Result<(), String> {
     secure_private_file(path)
+}
+
+#[cfg(windows)]
+pub(crate) fn secure_private_key(path: &Path) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    let script = r#"$ErrorActionPreference = 'Stop'
+$sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+$acl = New-Object System.Security.AccessControl.FileSecurity
+$acl.SetAccessRuleProtection($true, $false)
+$rule = New-Object System.Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', 'Allow')
+$acl.AddAccessRule($rule)
+[System.IO.File]::SetAccessControl($env:TUNNEL_HELPER_ACL_PATH, $acl)"#;
+    let output = Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .env("TUNNEL_HELPER_ACL_PATH", path)
+        .creation_flags(0x08000000)
+        .output()
+        .map_err(|error| format!("Cannot set private-key ACL: {error}"))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(format!("Cannot set private-key ACL: {}", String::from_utf8_lossy(&output.stderr).trim()))
+    }
 }
 
 fn detect_vm_ips() -> Vec<VmIpCandidate> {
@@ -715,7 +945,16 @@ fn detect_vm_ips() -> Vec<VmIpCandidate> {
 }
 
 fn find_free_port(start: u16) -> Result<u16, String> {
+    #[cfg(windows)]
+    let occupied: HashSet<u16> = windows_tcp_listeners()?.into_iter().map(|(port, _)| port).collect();
     for port in start..=u16::MAX {
+        #[cfg(windows)]
+        if occupied.contains(&port) { continue; }
+        #[cfg(windows)]
+        if TcpListener::bind(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port)).is_ok() {
+            return Ok(port);
+        }
+        #[cfg(not(windows))]
         if is_local_port_available(port) {
             return Ok(port);
         }
@@ -724,6 +963,14 @@ fn find_free_port(start: u16) -> Result<u16, String> {
 }
 
 fn is_local_port_available(port: u16) -> bool {
+    #[cfg(windows)]
+    {
+        let listeners = match windows_tcp_listeners() {
+            Ok(listeners) => listeners,
+            _ => return false,
+        };
+        if listeners.iter().any(|(listening_port, _)| *listening_port == port) { return false; }
+    }
     TcpListener::bind(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port)).is_ok()
 }
 
@@ -735,18 +982,28 @@ fn is_local_port_open(port: u16) -> bool {
     .is_ok()
 }
 
+fn ping_args(host: &str, timeout_sec: u16) -> Vec<String> {
+    #[cfg(windows)]
+    let args = ["-n".to_string(), "1".to_string(), "-w".to_string(),
+        (u32::from(timeout_sec.max(1)) * 1000).to_string()];
+    #[cfg(not(windows))]
+    let args = ["-c".to_string(), "1".to_string(), "-W".to_string(),
+        timeout_sec.max(1).to_string()];
+    args.into_iter().chain(std::iter::once(host.to_string())).collect()
+}
+
 async fn ping_host(host: String, timeout_sec: u16) -> Result<CommandResult, String> {
     let output = TokioCommand::new("ping")
-        .args(["-c", "1", "-W", &timeout_sec.max(1).to_string(), &host])
+        .args(ping_args(&host, timeout_sec))
         .output()
         .await
         .map_err(|error| format!("Cannot run ping: {error}"))?;
     Ok(CommandResult {
         success: output.status.success(),
         message: if output.status.success() {
-            format!("ping -c 1 {host}: success")
+            format!("ping {host}: success")
         } else {
-            format!("ping -c 1 {host}: failed or timed out")
+            format!("ping {host}: failed or timed out")
         },
     })
 }
@@ -765,7 +1022,14 @@ async fn test_ssh_server(input: TestSshArgs) -> Result<CommandResult, String> {
             .filter(|value| !value.is_empty()),
         askpass.as_deref(),
     ) {
-        if !private_key_unlocks(identity, askpass_path).await? {
+        let unlocked = match private_key_unlocks(identity, askpass_path).await {
+            Ok(unlocked) => unlocked,
+            Err(error) => {
+                let _ = fs::remove_file(askpass_path);
+                return Err(error);
+            }
+        };
+        if !unlocked {
             let _ = fs::remove_file(askpass_path);
             return Ok(CommandResult {
                 success: false,
@@ -833,6 +1097,8 @@ async fn test_password_ssh_server(input: TestPasswordArgs) -> Result<CommandResu
         "PreferredAuthentications=password,keyboard-interactive".to_string(),
         "-o".to_string(),
         "PubkeyAuthentication=no".to_string(),
+        "-o".to_string(),
+        "NumberOfPasswordPrompts=1".to_string(),
         format!("{}@{}", input.user, input.host),
         "exit".to_string(),
     ];
@@ -890,10 +1156,13 @@ async fn install_public_key(
         return Err("A server password or an existing login key is required.".to_string());
     }
     args.push(input.target.clone());
+    #[cfg(not(windows))]
     args.push(
         "umask 077; mkdir -p ~/.ssh; touch ~/.ssh/authorized_keys; cat | tr -d '\\r' >> ~/.ssh/authorized_keys; awk 'NF && !seen[$0]++' ~/.ssh/authorized_keys > ~/.ssh/authorized_keys.tmp && mv ~/.ssh/authorized_keys.tmp ~/.ssh/authorized_keys; chmod 700 ~/.ssh; chmod 600 ~/.ssh/authorized_keys"
             .to_string(),
     );
+    #[cfg(windows)]
+    args.push("umask 077; mkdir -p ~/.ssh; touch ~/.ssh/authorized_keys; cat | tr -d '\\r' >> ~/.ssh/authorized_keys; chmod 700 ~/.ssh; chmod 600 ~/.ssh/authorized_keys".to_string());
 
     let mut command = TokioCommand::new("ssh");
     command
@@ -1039,6 +1308,7 @@ where
     Ok(())
 }
 
+#[cfg(unix)]
 fn create_askpass_script(secret: &str) -> Result<PathBuf, String> {
     let path = env::temp_dir().join(format!(
         "tunnel-helper-askpass-{}-{}.sh",
@@ -1052,15 +1322,40 @@ fn create_askpass_script(secret: &str) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+#[cfg(windows)]
+fn create_askpass_script(secret: &str) -> Result<PathBuf, String> {
+    use std::io::Write;
+    if secret.contains(['\r', '\n', '\0']) {
+        return Err("Passphrases containing a newline or NUL are not supported".to_string());
+    }
+    if !secret.is_ascii() {
+        return Err("Non-ASCII passphrases are not yet supported by Windows askpass".to_string());
+    }
+    let path = env::temp_dir().join(format!(
+        "tunnel-helper-askpass-{}-{}.cmd", std::process::id(), rand::random::<u64>()
+    ));
+    let escaped = secret.replace('^', "^^").replace('%', "%%")
+        .replace('&', "^&").replace('|', "^|").replace('<', "^<").replace('>', "^>");
+    let result = (|| {
+        let mut file = fs::OpenOptions::new().write(true).create_new(true).open(&path)
+            .map_err(|error| error.to_string())?;
+        secure_private_key(&path)?;
+        write!(file, "@echo off\r\nsetlocal DisableDelayedExpansion\r\necho({escaped}\r\n").map_err(|error| error.to_string())?;
+        Ok(path.clone())
+    })();
+    if result.is_err() { let _ = fs::remove_file(&path); }
+    result
+}
+
+#[cfg(not(any(unix, windows)))]
+fn create_askpass_script(_secret: &str) -> Result<PathBuf, String> {
+    Err("Askpass is not supported on this platform".to_string())
+}
+
 #[cfg(unix)]
 fn set_executable(path: &Path) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
     fs::set_permissions(path, fs::Permissions::from_mode(0o700)).map_err(|error| error.to_string())
-}
-
-#[cfg(not(unix))]
-fn set_executable(_path: &Path) -> Result<(), String> {
-    Ok(())
 }
 
 fn configure_askpass(command: &mut TokioCommand, path: Option<&Path>) {
@@ -1081,7 +1376,7 @@ fn configure_process_group(command: &mut TokioCommand) {
     command.as_std_mut().process_group(0);
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 fn configure_process_group(_command: &mut TokioCommand) {}
 
 #[cfg(unix)]
@@ -1091,7 +1386,18 @@ fn terminate_process_group(pid: u32) {
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn terminate_process_group(pid: u32) {
+    use std::os::windows::process::CommandExt;
+    let _ = Command::new("taskkill.exe")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
+        .creation_flags(0x08000000)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+}
+
+#[cfg(not(any(unix, windows)))]
 fn terminate_process_group(_pid: u32) {}
 
 fn generate_ssh_config(input: GenerateConfigArgs) -> String {
@@ -1351,6 +1657,312 @@ mod tests {
         GenerateReverseConfigArgs,
     };
     use crate::config::{AuthMode, ServerConfig};
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_ping_uses_milliseconds() {
+        assert_eq!(super::ping_args("127.0.0.1", 2), ["-n", "1", "-w", "2000", "127.0.0.1"]);
+        assert_eq!(super::ping_args("127.0.0.1", 0)[3], "1000");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_listener_must_match_process_and_port() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let rows = super::windows_tcp_listeners().unwrap();
+        assert!(rows.contains(&(port, std::process::id())));
+        assert!(!super::is_local_port_available(port));
+        drop(listener);
+        assert!(super::is_local_port_available(port));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_process_snapshot_finds_ssh_child() {
+        use std::os::windows::process::CommandExt;
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let script = format!("& ssh.exe -o ConnectTimeout=10 -p {port} test@127.0.0.1");
+        let mut parent = std::process::Command::new("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .creation_flags(0x08000000).stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().unwrap();
+        let mut found = false;
+        for _ in 0..50 {
+            if !super::windows_ssh_children(parent.id()).is_empty() { found = true; break; }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        super::terminate_process_group(parent.id());
+        let _ = parent.wait();
+        assert!(found, "SSH child should be detected without starting another process");
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn windows_ping_reaches_loopback() {
+        assert!(super::ping_host("127.0.0.1".into(), 2).await.unwrap().success);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn tray_language_changes_preserve_server_settings() {
+        let dir = std::env::temp_dir().join(format!("tunnel-tray-lang-test-{}-{}", std::process::id(), rand::random::<u64>()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("app_settings.json");
+        std::fs::write(&path, r#"{"language":"zh","server":{"accessToken":"test-only","port":6789},"other":"keep"}"#).unwrap();
+        let config = ServerConfig { listen: "127.0.0.1".parse().unwrap(), port: 6789,
+            data_dir: dir.clone(), auth_mode: AuthMode::Token, access_token: Some("test-only".into()) };
+        let service = CommandService::new(&config).unwrap();
+        assert_eq!(service.tray_language().unwrap(), "zh");
+        service.set_tray_language("en").unwrap();
+        assert_eq!(service.tray_language().unwrap(), "en");
+        let saved = crate::config::read_settings(&path).unwrap();
+        assert_eq!(saved["server"]["accessToken"], "test-only");
+        assert_eq!(saved["server"]["port"], 6789);
+        assert_eq!(saved["other"], "keep");
+        assert!(service.set_tray_language("invalid").is_err());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_private_key_acl_restricts_access() {
+        use std::os::windows::process::CommandExt;
+        let path = std::env::temp_dir().join(format!("tunnel-helper-acl-test-{}-{}", std::process::id(), rand::random::<u64>()));
+        std::fs::write(&path, b"test").unwrap();
+        let result = (|| {
+            super::secure_private_key(&path)?;
+            let script = r#"$ErrorActionPreference='Stop'; $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; $acl=[System.IO.File]::GetAccessControl($env:TUNNEL_HELPER_ACL_PATH); if (-not $acl.AreAccessRulesProtected) { exit 1 }; $rules=@($acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])); if ($rules.Count -ne 1 -or $rules[0].IdentityReference.Value -ne $sid -or $rules[0].AccessControlType -ne 'Allow') { exit 2 }"#;
+            let status = std::process::Command::new("powershell.exe")
+                .args(["-NoProfile", "-NonInteractive", "-Command", script])
+                .env("TUNNEL_HELPER_ACL_PATH", &path)
+                .creation_flags(0x08000000).status().map_err(|e| e.to_string())?;
+            if status.success() { Ok(()) } else { Err(format!("ACL verification failed: {status}")) }
+        })();
+        let _ = std::fs::remove_file(path);
+        result.unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_askpass_preserves_batch_metacharacters() {
+        use std::os::windows::process::CommandExt;
+        for secret in ["simple password", "a&b|c<d>e^f%g!h", "parentheses()"] {
+            let path = super::create_askpass_script(secret).unwrap();
+            let check = r#"$acl=[System.IO.File]::GetAccessControl($env:TUNNEL_HELPER_ACL_PATH); $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; $r=@($acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])); if (!$acl.AreAccessRulesProtected -or $r.Count -ne 1 -or $r[0].IdentityReference.Value -ne $sid) { exit 1 }"#;
+            let acl_status = std::process::Command::new("powershell.exe")
+                .args(["-NoProfile", "-NonInteractive", "-Command", check])
+                .env("TUNNEL_HELPER_ACL_PATH", &path)
+                .creation_flags(0x08000000).status().unwrap();
+            let output = std::process::Command::new("cmd.exe")
+                .args(["/d", "/v:off", "/c"]).arg(&path)
+                .creation_flags(0x08000000).output().unwrap();
+            let _ = std::fs::remove_file(path);
+            assert!(acl_status.success());
+            assert!(output.status.success());
+            assert_eq!(String::from_utf8(output.stdout).unwrap().trim_end_matches(['\r', '\n']), secret);
+        }
+        assert!(super::create_askpass_script("bad\nsecret").is_err());
+        assert!(super::create_askpass_script("密码").is_err());
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    #[ignore = "requires an isolated test SSH server and test key"]
+    async fn windows_askpass_authenticates_with_test_server() {
+        let identity = std::env::var("TUNNEL_TEST_IDENTITY").unwrap();
+        let host = std::env::var("TUNNEL_TEST_HOST").unwrap();
+        let port = std::env::var("TUNNEL_TEST_PORT").unwrap();
+        let user = std::env::var("TUNNEL_TEST_USER").unwrap();
+        let known_hosts = std::env::var("TUNNEL_TEST_KNOWN_HOSTS").unwrap();
+        let good = super::create_askpass_script("test-Askpass_42!").unwrap();
+        let bad = super::create_askpass_script("wrong-test-passphrase").unwrap();
+        let result = async {
+            assert!(super::private_key_unlocks(&identity, &good).await.unwrap());
+            assert!(!super::private_key_unlocks(&identity, &bad).await.unwrap());
+            let mut ssh = tokio::process::Command::new("ssh");
+            ssh.args(["-T", "-p", &port, "-o", "ConnectTimeout=8", "-o", "StrictHostKeyChecking=accept-new", "-o", &format!("UserKnownHostsFile={known_hosts}"), "-o", "IdentitiesOnly=yes", "-i", &identity, &format!("{user}@{host}"), "exit"])
+                .stdin(std::process::Stdio::null());
+            super::configure_askpass(&mut ssh, Some(&good));
+            let output = ssh.output().await.unwrap();
+            assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        }.await;
+        let _ = std::fs::remove_file(good);
+        let _ = std::fs::remove_file(bad);
+        result
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    #[ignore = "requires an authorized SSH test server"]
+    async fn windows_single_tunnel_integration() {
+        let host = std::env::var("TUNNEL_TEST_HOST").unwrap();
+        let identity = std::env::var("TUNNEL_TEST_IDENTITY").unwrap();
+        let user = std::env::var("TUNNEL_TEST_USER").unwrap();
+        let guard = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = guard.local_addr().unwrap().port();
+        let dir = std::env::temp_dir().join(format!("tunnel-helper-integration-{}-{}", std::process::id(), rand::random::<u64>()));
+        let config = ServerConfig { listen: "127.0.0.1".parse().unwrap(), port: 6789,
+            data_dir: dir.clone(), auth_mode: AuthMode::Token, access_token: None };
+        let service = CommandService::new(&config).unwrap();
+        let request = || super::TunnelRequest { user: user.clone(), host: host.clone(), server_port: 22,
+            local_port: port, identity_file: Some(identity.clone()), identity_passphrase: None,
+            reconnect: false, reconnect_delay: None, reverse_tunnel: false, reverse_target_port: 22 };
+        assert!(service.start_key_tunnel(request()).await.is_err(), "occupied port must be rejected");
+        drop(guard);
+        let started = service.start_key_tunnel(request()).await.unwrap();
+        let mut connected = false;
+        for _ in 0..30 {
+            let status = service.check_tunnel_status(started.pid).await.unwrap();
+            if status.connected { connected = true; break; }
+            if !status.running { break; }
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        }
+        let listed = service.list_connections().await.unwrap();
+        let _ = service.stop_tunnel(started.pid).await;
+        let released = super::is_local_port_available(port);
+        let _ = std::fs::remove_dir_all(dir);
+        assert!(connected, "SSH listener was not confirmed");
+        assert!(listed.iter().any(|item| item.pid == started.pid && item.connected));
+        assert!(released, "port should be released after stopping");
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    #[ignore = "requires an authorized SSH test server"]
+    async fn windows_reconnects_after_child_exit() {
+        use std::os::windows::process::CommandExt;
+        let host = std::env::var("TUNNEL_TEST_HOST").unwrap();
+        let identity = std::env::var("TUNNEL_TEST_IDENTITY").unwrap();
+        let user = std::env::var("TUNNEL_TEST_USER").unwrap();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+        let dir = std::env::temp_dir().join(format!("tunnel-helper-reconnect-test-{}-{}", std::process::id(), rand::random::<u64>()));
+        let config = ServerConfig { listen: "127.0.0.1".parse().unwrap(), port: 6789,
+            data_dir: dir.clone(), auth_mode: AuthMode::Token, access_token: None };
+        let service = CommandService::new(&config).unwrap();
+        let request = super::TunnelRequest { user, host, server_port: 22, local_port: port,
+            identity_file: Some(identity), identity_passphrase: None, reconnect: true,
+            reconnect_delay: Some(1), reverse_tunnel: false, reverse_target_port: 22 };
+        let started = service.start_key_tunnel(request).await.unwrap();
+        let mut first = None;
+        for _ in 0..30 {
+            let children = super::windows_ssh_children(started.pid);
+            if service.check_tunnel_status(started.pid).await.unwrap().connected {
+                first = children.first().copied();
+                if first.is_some() { break; }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        }
+        let mut reconnected = false;
+        if let Some(first_pid) = first {
+            let _ = std::process::Command::new("taskkill.exe").args(["/PID", &first_pid.to_string(), "/F"])
+                .creation_flags(0x08000000).stdout(std::process::Stdio::null()).status();
+            for _ in 0..30 {
+                let children = super::windows_ssh_children(started.pid);
+                if children.iter().any(|pid| *pid != first_pid) && service.check_tunnel_status(started.pid).await.unwrap().connected {
+                    reconnected = true;
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            }
+        }
+        let _ = service.stop_tunnel(started.pid).await;
+        let released = super::is_local_port_available(port);
+        let _ = std::fs::remove_dir_all(dir);
+        assert!(first.is_some(), "initial SSH listener was not confirmed");
+        assert!(reconnected, "replacement SSH listener was not confirmed");
+        assert!(released, "port should be released after stopping");
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn windows_tunnel_refuses_unsupported_start_and_removes_askpass() {
+        let dir = std::env::temp_dir().join(format!("tunnel-helper-unsupported-{}-{}", std::process::id(), rand::random::<u64>()));
+        let config = ServerConfig { listen: "127.0.0.1".parse().unwrap(), port: 6789,
+            data_dir: dir.clone(), auth_mode: AuthMode::Token, access_token: None };
+        let service = CommandService::new(&config).unwrap();
+        let path = super::create_askpass_script("test-secret").unwrap();
+        let connection = super::ConnectionInfo { pid: 0, user: "test".into(), host: "localhost".into(),
+            server_port: 22, local_port: 2222, auth_mode: "key", reconnect: true, reverse_tunnel: true,
+            reverse_target_port: 22, identity_file: None, command: String::new(), running: true, connected: false };
+        let result = service.spawn_tunnel(vec![], Some(path.clone()), true, Some(1), connection).await;
+        assert!(result.is_err());
+        assert!(!path.exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn connection_list_is_shared_and_does_not_expose_secrets() {
+        use std::os::windows::process::CommandExt;
+        let dir = std::env::temp_dir().join(format!("tunnel-helper-registry-test-{}-{}", std::process::id(), rand::random::<u64>()));
+        let config = ServerConfig { listen: "127.0.0.1".parse().unwrap(), port: 6789,
+            data_dir: dir.clone(), auth_mode: AuthMode::Token, access_token: None };
+        let service = CommandService::new(&config).unwrap();
+        let mut command = tokio::process::Command::new("cmd.exe");
+        command.args(["/c", "ping", "-t", "127.0.0.1"])
+            .stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+        command.as_std_mut().creation_flags(0x08000000);
+        let child = command.spawn().unwrap();
+        let pid = child.id().unwrap();
+        let connection = super::ConnectionInfo { pid, user: "test".into(), host: "example.invalid".into(),
+            server_port: 22, local_port: 2222, auth_mode: "password", reconnect: false, reverse_tunnel: false,
+            reverse_target_port: 22, identity_file: None, command: "ssh example.invalid".into(), running: true, connected: false };
+        service.tunnels.lock().await.insert(pid, super::ManagedTunnel { child, askpass_path: None,
+            control_path: dir.join("missing.sock"), connection });
+        let other_client = service.clone();
+        let listed = other_client.invoke("list_connections", serde_json::json!({})).await.unwrap();
+        assert_eq!(listed.as_array().unwrap().len(), 1);
+        assert_eq!(listed[0]["pid"], pid);
+        assert!(listed[0].get("password").is_none());
+        assert!(listed[0].get("identityPassphrase").is_none());
+        other_client.stop_tunnel(pid).await.unwrap();
+        assert!(service.list_connections().await.unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn unix_connection_list_is_shared_and_updates_after_stop() {
+        let dir = std::env::temp_dir().join(format!("tunnel-helper-registry-test-{}-{}", std::process::id(), rand::random::<u64>()));
+        let config = ServerConfig { listen: "127.0.0.1".parse().unwrap(), port: 6789,
+            data_dir: dir.clone(), auth_mode: AuthMode::Token, access_token: None };
+        let service = CommandService::new(&config).unwrap();
+        let mut command = tokio::process::Command::new("sleep");
+        command.arg("60").kill_on_drop(true);
+        super::configure_process_group(&mut command);
+        let child = command.spawn().unwrap();
+        let pid = child.id().unwrap();
+        let connection = super::ConnectionInfo { pid, user: "test".into(), host: "example.invalid".into(),
+            server_port: 22, local_port: 2222, auth_mode: "key", reconnect: false, reverse_tunnel: false,
+            reverse_target_port: 22, identity_file: None, command: "ssh example.invalid".into(), running: true, connected: false };
+        service.tunnels.lock().await.insert(pid, super::ManagedTunnel { child, askpass_path: None,
+            control_path: dir.join("missing.sock"), connection });
+        let other_client = service.clone();
+        let listed = other_client.invoke("list_connections", serde_json::json!({})).await.unwrap();
+        assert_eq!(listed.as_array().unwrap().len(), 1);
+        assert_eq!(listed[0]["pid"], pid);
+        assert!(listed[0].get("password").is_none());
+        assert!(listed[0].get("identityPassphrase").is_none());
+        other_client.stop_tunnel(pid).await.unwrap();
+        assert!(service.list_connections().await.unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_terminates_owned_process_tree() {
+        use std::os::windows::process::CommandExt;
+        let mut child = std::process::Command::new("cmd.exe")
+            .args(["/c", "ping", "-t", "127.0.0.1"])
+            .creation_flags(0x08000000)
+            .spawn().unwrap();
+        super::terminate_process_group(child.id());
+        assert!(child.wait().is_ok());
+    }
 
     #[test]
     fn local_tunnel_keeps_lan_listener() {

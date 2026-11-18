@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::{Deserialize, Serialize};
+use tauri::Manager;
 use std::{
     collections::HashMap,
     env, fs,
@@ -8,7 +9,7 @@ use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
-    sync::Mutex,
+    sync::{atomic::{AtomicBool, Ordering}, Mutex},
     time::{Duration, Instant},
 };
 
@@ -21,6 +22,7 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 #[derive(Default)]
 struct AppState {
     tunnels: Mutex<HashMap<u32, ManagedTunnel>>,
+    tray_available: AtomicBool,
 }
 
 struct ManagedTunnel {
@@ -1848,8 +1850,12 @@ fn hide_process_window(pid: u32) -> Result<bool, String> {
 }
 
 #[tauri::command]
-fn window_minimize(window: tauri::Window) -> Result<(), String> {
-    window.minimize().map_err(|e| e.to_string())
+fn window_minimize(window: tauri::Window, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    if state.tray_available.load(Ordering::Relaxed) {
+        window.hide().map_err(|e| e.to_string())
+    } else {
+        window.minimize().map_err(|e| e.to_string())
+    }
 }
 
 #[tauri::command]
@@ -1874,6 +1880,40 @@ fn window_start_drag(window: tauri::Window) -> Result<(), String> {
 fn main() {
     tauri::Builder::default()
         .manage(AppState::default())
+        .setup(|app| {
+            use tauri::{menu::{Menu, MenuItem}, tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}};
+            let result = (|| -> tauri::Result<()> {
+                let show = MenuItem::with_id(app, "show", "显示 / Show", true, None::<&str>)?;
+                let quit = MenuItem::with_id(app, "quit", "关闭连接并退出 / Stop connections and exit", true, None::<&str>)?;
+                let menu = Menu::with_items(app, &[&show, &quit])?;
+                let mut tray = TrayIconBuilder::new().menu(&menu).tooltip("Tunnel Helper")
+                    .show_menu_on_left_click(false)
+                    .on_menu_event(|app, event| {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
+                            if event.id().as_ref() == "quit" {
+                                let _ = window.eval("window.dispatchEvent(new Event('tunnel-helper-tray-exit'))");
+                            }
+                        }
+                    })
+                    .on_tray_icon_event(|tray, event| {
+                        if matches!(event, TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. }) {
+                            if let Some(window) = tray.app_handle().get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.unminimize();
+                                let _ = window.set_focus();
+                            }
+                        }
+                    });
+                if let Some(icon) = app.default_window_icon() { tray = tray.icon(icon.clone()); }
+                tray.build(app)?;
+                Ok(())
+            })();
+            if result.is_ok() { app.state::<AppState>().tray_available.store(true, Ordering::Relaxed); }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             load_profiles,
             save_profiles,

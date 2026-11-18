@@ -1,9 +1,13 @@
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 mod api;
 mod config;
 mod models;
 mod service;
 #[cfg(target_os = "linux")]
 mod tray;
+#[cfg(windows)]
+mod windows_tray;
 
 use api::ApiState;
 use clap::Parser;
@@ -14,13 +18,19 @@ use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() {
-    if let Err(error) = run().await {
+    #[cfg(windows)]
+    let console_available = windows_tray::attach_parent_console();
+    #[cfg(not(windows))]
+    let console_available = true;
+    if let Err(error) = run(console_available).await {
         eprintln!("Tunnel Helper failed to start: {error}");
+        #[cfg(windows)]
+        if !console_available { windows_tray::show_start_error(&error); }
         std::process::exit(1);
     }
 }
 
-async fn run() -> Result<(), String> {
+async fn run(_console_available: bool) -> Result<(), String> {
     let config = ServerConfig::from_cli(Cli::parse())?;
     let service = CommandService::new(&config)?;
     let address = SocketAddr::new(config.listen, config.port);
@@ -34,7 +44,7 @@ async fn run() -> Result<(), String> {
         service: service.clone(),
         auth_mode: config.auth_mode,
         access_token,
-        shutdown: shutdown_tx,
+        shutdown: shutdown_tx.clone(),
     });
 
     println!("Tunnel Helper server is running");
@@ -62,6 +72,18 @@ async fn run() -> Result<(), String> {
 
     #[cfg(target_os = "linux")]
     let (tray_shutdown, _tray_handle) = tray::start(config.display_host(), config.port).await;
+
+    #[cfg(windows)]
+    let _tray_handle = {
+        let tray = windows_tray::start(config.display_host(), config.port, config.access_token.clone().unwrap_or_default(), shutdown_tx, service.clone());
+        if tray.is_none() {
+            if !_console_available && !windows_tray::allocate_fallback_console() {
+                return Err("System tray and fallback console are unavailable; service was not started.".to_string());
+            }
+            eprintln!("System tray unavailable; the console remains open.");
+        }
+        tray
+    };
 
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {

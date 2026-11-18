@@ -40,9 +40,8 @@ async fn health() -> Json<Value> {
 async fn runtime(State(state): State<ApiState>) -> Json<Value> {
     Json(json!({
         "runtime": "browser",
-        "platform": "linux",
+        "platform": if cfg!(windows) { "windows" } else { "linux" },
         "authRequired": state.auth_mode == AuthMode::Token,
-        "dataDir": state.service.data_dir().to_string_lossy(),
     }))
 }
 

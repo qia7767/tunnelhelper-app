@@ -876,6 +876,10 @@ html[data-runtime="tauri"] .linux-only {
   display: none !important;
 }
 
+html[data-platform="windows"] label.linux-only {
+  display: none !important;
+}
+
 .item-title {
   font-weight: 700;
 }

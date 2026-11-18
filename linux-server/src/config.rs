@@ -75,10 +75,17 @@ impl ServerConfig {
             }
         };
         validate_server_settings(&settings)?;
+        #[cfg(not(windows))]
         let configured_token = settings
             .get("tokenEnabled")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        #[cfg(windows)]
+        let configured_token = true;
+        #[cfg(windows)]
+        if cli.auth == Some(AuthMode::Disabled) {
+            return Err("Windows web service requires token authentication".to_string());
+        }
         let auth_mode = cli.auth.unwrap_or(if configured_token {
             AuthMode::Token
         } else {
@@ -128,6 +135,8 @@ impl ServerConfig {
                     None if configured_token => {
                         let token = generate_access_token();
                         settings["accessToken"] = json!(token);
+                        #[cfg(windows)]
+                        { settings["tokenEnabled"] = json!(true); }
                         app_settings["server"] = settings.clone();
                         write_settings(&path, &app_settings)?;
                         token
@@ -203,9 +212,17 @@ pub(crate) fn write_settings(path: &std::path::Path, settings: &Value) -> Result
         options.mode(0o600);
     }
     let result = (|| {
-        let mut file = options
+        let file = options
             .open(&temp_path)
             .map_err(|error| format!("Cannot write {}: {error}", path.display()))?;
+        #[cfg(windows)]
+        let mut file = {
+            drop(file);
+            crate::service::secure_private_key(&temp_path)?;
+            fs::OpenOptions::new().write(true).open(&temp_path).map_err(|error| error.to_string())?
+        };
+        #[cfg(not(windows))]
+        let mut file = file;
         file.write_all(format!("{text}\n").as_bytes())
             .map_err(|error| error.to_string())?;
         file.sync_all().map_err(|error| error.to_string())?;
@@ -258,6 +275,22 @@ mod tests {
         }
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn windows_defaults_to_persistent_token_and_rejects_disabled_auth() {
+        let dir = env::temp_dir().join(format!("tunnel-helper-win-token-test-{}", rand::random::<u64>()));
+        let first = ServerConfig::from_cli(test_cli(dir.clone())).unwrap();
+        let second = ServerConfig::from_cli(test_cli(dir.clone())).unwrap();
+        assert_eq!(first.auth_mode, AuthMode::Token);
+        assert_eq!(first.access_token, second.access_token);
+        assert_eq!(first.access_token.as_ref().unwrap().len(), 40);
+        let mut disabled = test_cli(dir.clone());
+        disabled.auth = Some(AuthMode::Disabled);
+        assert!(ServerConfig::from_cli(disabled).is_err());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(not(windows))]
     #[test]
     fn absent_configuration_defaults_to_lan_without_creating_settings() {
         let dir = env::temp_dir().join(format!(
@@ -307,6 +340,7 @@ mod tests {
         fs::remove_dir_all(dir).unwrap();
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn empty_or_disabled_token_never_enables_authentication() {
         let dir = env::temp_dir().join(format!(

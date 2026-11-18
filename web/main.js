@@ -1,5 +1,7 @@
 const invoke = window.TunnelBridge.invoke;
 const isLinuxServer = !window.TunnelBridge.isTauri;
+let isWindowsWeb = false;
+let connectionSyncInProgress = false;
 
 const state = {
   keys: [],
@@ -2004,6 +2006,7 @@ async function refreshAllFromButton() {
 }
 
 function startStatusTimer() {
+  if (isWindowsWeb) return;
   clearInterval(state.statusTimer);
   state.statusTimer = setInterval(async () => {
     const active = runningConnections();
@@ -2607,7 +2610,8 @@ async function showHelp() {
   navigation.textContent = "";
   navigation.setAttribute("aria-label", lang() === "en" ? "Help contents" : "帮助目录");
   try {
-    const response = await fetch(`./help/linux-service.${lang() === "en" ? "en" : "zh"}.md`);
+    const helpName = isWindowsWeb ? "windows-web" : isLinuxServer ? "linux-service" : "windows-desktop";
+    const response = await fetch(`./help/${helpName}.${lang() === "en" ? "en" : "zh"}.md`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const markdown = await response.text();
     let code = null;
@@ -2641,6 +2645,7 @@ async function showHelp() {
   }
 }
 $("helpButton").addEventListener("click", showHelp);
+window.addEventListener("tunnel-helper-tray-exit", closeAppSafely);
 $("closeHelp").addEventListener("click", () => $("helpModal").classList.add("hidden"));
 $("helpModal").addEventListener("click", (event) => {
   if (event.target === $("helpModal")) $("helpModal").classList.add("hidden");
@@ -2937,12 +2942,57 @@ $("clearClosedConnections").addEventListener("click", () => {
 });
 
 async function initializeApp() {
+  if (isLinuxServer) {
+    const response = await fetch("/api/runtime");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const runtime = await response.json();
+    isWindowsWeb = runtime.platform === "windows";
+    document.documentElement.dataset.platform = runtime.platform;
+  }
   await loadSettings();
   applyDefaultSettings(state.appSettings.defaults);
   applySettings();
   updateInstallActionState();
   renderConnections();
+  if (isWindowsWeb) {
+    await syncWindowsConnections();
+    setInterval(() => syncWindowsConnections().catch((error) => log("状态检查失败", String(error))), 4000);
+  }
   refreshAll();
+}
+
+async function syncWindowsConnections() {
+  if (connectionSyncInProgress) return;
+  connectionSyncInProgress = true;
+  try {
+    const remote = await invoke("list_connections");
+    const settings = await invoke("load_app_settings");
+    const language = settings.language === "en" ? "en" : "zh";
+    if (state.appSettings && state.appSettings.language !== language) {
+      state.appSettings.language = language;
+      $("languageSelect").value = language;
+      document.documentElement.lang = language === "en" ? "en" : "zh-CN";
+      applyTranslations();
+    }
+    const old = new Map(state.connections.map((item) => [item.pid, item]));
+    state.connections = remote.map((item) => {
+      const previous = old.get(item.pid);
+      old.delete(item.pid);
+      const status = !item.running ? "exited" : item.connected ? "running" : "starting";
+      return { ...item, alias: previous?.alias || item.user, status,
+        statusText: !item.running ? tr("tunnelExited") : item.connected ? tr("running") : tr("starting") };
+    });
+    for (const item of old.values()) {
+      if (item.status === "starting" || item.status === "running") {
+        item.status = "exited";
+        item.statusText = tr("tunnelExited");
+      }
+      state.connections.push(item);
+    }
+    renderConnections();
+  } finally {
+    connectionSyncInProgress = false;
+  }
 }
 
 initializeApp().catch((error) => log("初始化失败", String(error)));
