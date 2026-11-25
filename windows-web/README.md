@@ -4,7 +4,7 @@ This is a separate browser-controlled Windows service. It does not share connect
 
 ## Build and run
 
-From this directory, run `./build.ps1`, then launch `dist/tunnel-helper-web.exe`. The program requires Windows OpenSSH (`ssh.exe` and `ssh-keygen.exe`) and PowerShell. Double-clicking does not create a console window. Right-click the tray icon to open the web interface, copy the access token, or stop the service. If the tray cannot be created, the program attempts to open a fallback console. When launched from an existing terminal, it attempts to attach to that console for diagnostics.
+From this directory, run `./build.ps1`, then launch `../dist/portable/build-latest/windows-web/tunnel-helper-web.exe`. The program requires Windows OpenSSH (`ssh.exe` and `ssh-keygen.exe`) and PowerShell. Double-clicking does not create a console window. Right-click the tray icon to open the web interface, copy the access token, or stop the service. If the tray cannot be created, the program attempts to open a fallback console. When launched from an existing terminal, it attempts to attach to that console for diagnostics.
 
 The tray Language menu switches between Chinese and English. The language is shared with the web settings and saved in `app_settings.json`.
 

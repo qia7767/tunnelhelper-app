@@ -24,7 +24,7 @@ For a self-contained x86_64 binary, install a musl linker once and run the build
 sudo apt install musl-tools
 sh build-portable.sh
 mkdir portable
-tar -xzf dist/tunnel-helper-linux-x86_64.tar.gz -C portable
+tar -xzf ../dist/portable/build-latest/linux-web/tunnel-helper-linux-x86_64.tar.gz -C portable
 cd portable
 ./tunnel-helper
 ```

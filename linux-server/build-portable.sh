@@ -2,7 +2,9 @@
 set -eu
 
 TARGET="x86_64-unknown-linux-musl"
-OUTPUT_DIR="dist"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+cd "$SCRIPT_DIR"
+OUTPUT_DIR="$SCRIPT_DIR/../dist/portable/build-latest/linux-web"
 OUTPUT="$OUTPUT_DIR/tunnel-helper-linux-x86_64"
 ARCHIVE="$OUTPUT_DIR/tunnel-helper-linux-x86_64.tar.gz"
 OUTPUT_NAME="$(basename "$OUTPUT")"
@@ -19,7 +21,7 @@ mkdir -p "$OUTPUT_DIR"
 install -m 755 "target/$TARGET/release/tunnel-helper" "$OUTPUT"
 tar -czf "$ARCHIVE" \
   --transform='s|tunnel-helper-linux-x86_64|tunnel-helper|' \
-  -C "$OUTPUT_DIR" "$OUTPUT_NAME" -C ../../web help
+  -C "$OUTPUT_DIR" "$OUTPUT_NAME" -C "$SCRIPT_DIR/../web" help
 (
   cd "$OUTPUT_DIR"
   sha256sum "$OUTPUT_NAME" > "$OUTPUT_NAME.sha256"
