@@ -21,6 +21,7 @@ const state = {
   connectionsUnreadCount: 0,
   highlightedConnectionPid: null,
   highlightTimer: null,
+  portStatus: { key: "portNotChecked", args: [] },
 };
 
 const $ = (id) => document.getElementById(id);
@@ -154,6 +155,7 @@ const I18N = {
     reverseToLocal: (host, remote, target) => `中转服务器 ${host}:${remote} → 本机 127.0.0.1:${target}`,
     noVmIp: "未检测到虚拟机 IP",
     portAvailable: "端口可用",
+    portNotChecked: "未检测端口",
     usingPort: (port) => `已改用 ${port}`,
     noKey: "不指定",
     noPublicKey: "不自动选择",
@@ -435,6 +437,7 @@ const I18N = {
     reverseToLocal: (host, remote, target) => `Relay ${host}:${remote} → Local 127.0.0.1:${target}`,
     noVmIp: "No VM IP detected",
     portAvailable: "Port available",
+    portNotChecked: "Port not checked",
     usingPort: (port) => `Using ${port}`,
     noKey: "None",
     noPublicKey: "Do not auto-select",
@@ -1105,6 +1108,7 @@ function applyTranslations() {
   renderSelectionState();
   updateProfileTunnelMode();
   updateTunnelMode();
+  renderPortStatus();
   updateTunnelSummary();
   updateConnectionsTabBadge();
   renderKeySelects();
@@ -1846,16 +1850,25 @@ async function refreshVmIps() {
   }
 }
 
+function setPortStatus(key, ...args) {
+  state.portStatus = { key, args };
+  renderPortStatus();
+}
+
+function renderPortStatus() {
+  $("portStatus").textContent = tr(state.portStatus.key, ...state.portStatus.args);
+}
+
 async function refreshPort(showNotice = false) {
   if (isLinuxServer && $("reverseTunnel").value === "true") {
-    $("portStatus").textContent = tr("waitingReversePort");
+    setPortStatus("waitingReversePort");
     return;
   }
   const start = Number($("localPort").value || 2222);
   log("检测本地端口", `find_free_port ${start}`);
   const port = await invoke("find_free_port", { startPort: start });
   $("localPort").value = port;
-  $("portStatus").textContent = port === start ? tr("portAvailable") : tr("usingPort", port);
+  setPortStatus(port === start ? "portAvailable" : "usingPort", ...(port === start ? [] : [port]));
   if (showNotice) showToast(port === start ? tr("portAvailable") : tr("usingPort", port), `${tr("localPort")} ${port}`, "success");
 }
 
@@ -1894,7 +1907,9 @@ function updateTunnelMode() {
   $("writeConfig").disabled = reverse;
   setLabelText("localPort", reverse ? "remotePortOnA" : "localPort");
   if (reverse) {
-    $("portStatus").textContent = tr("waitingReversePort");
+    setPortStatus("waitingReversePort");
+  } else if (state.portStatus.key === "waitingReversePort") {
+    setPortStatus("portNotChecked");
   }
 }
 
@@ -2174,7 +2189,7 @@ async function stopTunnel(pid) {
   connection.statusText = released ? tr("tunnelStoppedReleased") : tr("tunnelStoppedBusy");
   renderConnections();
   if (!connection.reverseTunnel && Number($("localPort").value) === Number(connection.localPort)) {
-    $("portStatus").textContent = released ? tr("portReleased") : tr("portStillBusy");
+    setPortStatus(released ? "portReleased" : "portStillBusy");
   }
   await updateConfig();
   showToast(
